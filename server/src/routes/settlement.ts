@@ -103,6 +103,42 @@ async function resolvePredictionIdFromEntryId(inputId: string): Promise<string> 
   return candidate;
 }
 
+function isMissingColumnError(error: any): boolean {
+  const code = String(error?.code || '');
+  const msg = String(error?.message || '').toLowerCase();
+  return (
+    code === '42703' ||
+    code === 'PGRST204' ||
+    msg.includes('does not exist') ||
+    msg.includes('could not find the column')
+  );
+}
+
+async function fetchPredictionForSettlement(predictionId: string): Promise<{ prediction: any | null; error: any | null }> {
+  const primary = await supabase
+    .from('predictions')
+    .select('id, creator_id, title, status, settled_at, winning_option_id, resolution_reason, resolution_source_url, platform_fee_percentage, creator_fee_percentage')
+    .eq('id', predictionId)
+    .single();
+
+  if (!primary.error || primary.data) {
+    return { prediction: primary.data as any, error: primary.error as any };
+  }
+
+  // Staging-safe fallback for schema drift: if newer columns are missing,
+  // retry with minimal fields required to authorize and proceed.
+  if (isMissingColumnError(primary.error)) {
+    const fallback = await supabase
+      .from('predictions')
+      .select('id, creator_id, title, status')
+      .eq('id', predictionId)
+      .single();
+    return { prediction: fallback.data as any, error: fallback.error as any };
+  }
+
+  return { prediction: null, error: primary.error as any };
+}
+
 // ---- Demo wallet helpers (DB-backed ledger) ----
 const DEMO_CURRENCY = 'DEMO_USD';
 const DEMO_PROVIDER = 'demo-wallet';
@@ -2498,22 +2534,14 @@ router.post('/manual/merkle', async (req, res) => {
 
     // Verify user is creator and load settled_at for idempotency.
     // Fallback: if caller passed an entry UUID by mistake, map entry id -> prediction id.
-    let { data: prediction, error: predictionError } = await supabase
-      .from('predictions')
-      .select('id, creator_id, title, status, settled_at, winning_option_id, resolution_reason, resolution_source_url, platform_fee_percentage, creator_fee_percentage')
-      .eq('id', predictionId)
-      .single();
+    let { prediction, error: predictionError } = await fetchPredictionForSettlement(predictionId);
     if (predictionError || !prediction) {
       const resolvedFromEntry = await resolvePredictionIdFromEntryId(predictionId);
       if (resolvedFromEntry !== predictionId) {
         predictionId = resolvedFromEntry;
-        const retry = await supabase
-          .from('predictions')
-          .select('id, creator_id, title, status, settled_at, winning_option_id, resolution_reason, resolution_source_url, platform_fee_percentage, creator_fee_percentage')
-          .eq('id', predictionId)
-          .single();
-        prediction = retry.data as any;
-        predictionError = retry.error as any;
+        const retry = await fetchPredictionForSettlement(predictionId);
+        prediction = retry.prediction;
+        predictionError = retry.error;
       }
     }
     if (predictionError || !prediction) {
