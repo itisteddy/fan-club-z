@@ -34,6 +34,58 @@ async function safeRecomputePrediction(predictionId: string, fallbackPrediction:
   }
 }
 
+async function recoverAndTopUpEntry(args: {
+  entryId?: string | null;
+  userId: string;
+  predictionId: string;
+  optionId: string;
+  provider: string;
+  amountDelta: number;
+  estPayout?: number;
+}) {
+  const { entryId, userId, predictionId, optionId, provider, amountDelta, estPayout } = args;
+
+  const tryUpdate = async (targetId: string) => {
+    const { data: current } = await supabase
+      .from('prediction_entries')
+      .select('id, amount')
+      .eq('id', targetId)
+      .maybeSingle();
+    if (!current?.id) return { data: null, error: null as any };
+    const nextAmount = Number(current.amount || 0) + amountDelta;
+    const updated = await supabase
+      .from('prediction_entries')
+      .update({
+        amount: nextAmount,
+        potential_payout: estPayout ?? nextAmount,
+        updated_at: new Date().toISOString(),
+      } as any)
+      .eq('id', targetId)
+      .select('*')
+      .maybeSingle();
+    return { data: updated.data as any, error: updated.error as any };
+  };
+
+  if (entryId) {
+    const direct = await tryUpdate(entryId);
+    if (direct.data?.id || direct.error) return direct;
+  }
+
+  // Fallback: entry id may be stale, locate most recent matching entry and retry.
+  const { data: latest } = await supabase
+    .from('prediction_entries')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('prediction_id', predictionId)
+    .eq('option_id', optionId)
+    .eq('provider', provider)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!latest?.id) return { data: null, error: null as any };
+  return tryUpdate(String(latest.id));
+}
+
 /**
  * Map DB/Supabase errors to HTTP status + FCZ error code + user-facing message.
  * Returns { status, code, message } or null if unknown (caller uses 500).
@@ -435,17 +487,15 @@ async function handlePlaceBet(req: any, res: any) {
       let entry: any = null;
       const isTopUp = Boolean(quoteSameOutcomeEntry?.id);
       if (isTopUp) {
-        const nextAmount = Number(quoteSameOutcomeEntry.amount || 0) + amountUSD;
-        const { data: updatedEntry, error: updateErr } = await supabase
-          .from('prediction_entries')
-          .update({
-            amount: nextAmount,
-            potential_payout: quoteUsed?.after?.estPayout ?? nextAmount,
-            updated_at: new Date().toISOString(),
-          } as any)
-          .eq('id', quoteSameOutcomeEntry.id)
-          .select('*')
-          .single();
+        const { data: updatedEntry, error: updateErr } = await recoverAndTopUpEntry({
+          entryId: quoteSameOutcomeEntry?.id,
+          userId,
+          predictionId,
+          optionId,
+          provider: PROVIDER,
+          amountDelta: amountUSD,
+          estPayout: quoteUsed?.after?.estPayout,
+        });
         if (updateErr || !updatedEntry?.id) {
           console.error('[FCZ-BET] demo entry top-up failed', { requestId: reqId, error: updateErr });
           return res.status(500).json({
@@ -1158,16 +1208,15 @@ async function handlePlaceBet(req: any, res: any) {
 
     if (isTopUp && existingEntry) {
       totalEntryAmount = Number(existingEntry.amount || 0) + amountUSD;
-      const { data: updatedEntry, error: updateError } = await supabase
-        .from('prediction_entries')
-        .update({
-          amount: totalEntryAmount,
-          potential_payout: quoteUsed?.after?.estPayout ?? totalEntryAmount,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', existingEntry.id)
-        .select('id')
-        .single();
+      const { data: updatedEntry, error: updateError } = await recoverAndTopUpEntry({
+        entryId: existingEntry?.id,
+        userId,
+        predictionId,
+        optionId,
+        provider: 'crypto-base-usdc',
+        amountDelta: amountUSD,
+        estPayout: quoteUsed?.after?.estPayout,
+      });
 
       if (updateError) {
         console.error('[FCZ-BET] Error updating existing entry:', updateError);
@@ -1183,7 +1232,20 @@ async function handlePlaceBet(req: any, res: any) {
         });
       }
 
-      entryId = updatedEntry?.id || existingEntry.id;
+      if (!updatedEntry?.id) {
+        await supabase
+          .from('escrow_locks')
+          .update({ state: 'released', status: 'released', released_at: new Date().toISOString() })
+          .eq('id', lockId);
+        return res.status(500).json({
+          code: 'FCZ_DATABASE_ERROR',
+          error: 'entry_update_failed',
+          message: 'Failed to increase your stake on this option',
+          requestId: reqId,
+          version: VERSION,
+        });
+      }
+      entryId = updatedEntry.id;
     } else {
       const { data: entry, error: entryError } = await supabase
         .from('prediction_entries')
