@@ -1246,32 +1246,59 @@ async function handlePlaceBet(req: any, res: any) {
       },
     });
 
-    // Emit event_log
-    await supabase
-      .from('event_log')
-      .insert({
-        source: 'place_bet',
-        kind: 'prediction.entry.created',
-        ref: entryId,
-        payload: {
-          prediction_id: predictionId,
-          option_id: optionId,
-          user_id: userId,
-          amount: amountUSD,
-          lock_id: lockId
-        }
-      });
+    // Core bet writes are complete at this point (entry + lock consume).
+    // Mark mutation as committed before best-effort side effects.
+    mutationLockCommit = true;
 
-    const recomputed = await recomputePredictionState(predictionId);
-    const { data: latestEntry, error: latestEntryError } = await supabase
-      .from('prediction_entries')
-      .select('*')
-      .eq('id', entryId)
-      .single();
-    if (latestEntryError) {
-      console.warn('[FCZ-BET] Failed to fetch latest entry record:', latestEntryError);
+    // Best-effort telemetry: do not fail a successful bet if event_log drifts.
+    try {
+      await supabase
+        .from('event_log')
+        .insert({
+          source: 'place_bet',
+          kind: 'prediction.entry.created',
+          ref: entryId,
+          payload: {
+            prediction_id: predictionId,
+            option_id: optionId,
+            user_id: userId,
+            amount: amountUSD,
+            lock_id: lockId
+          }
+        });
+    } catch (eventLogError) {
+      console.warn('[FCZ-BET] event_log insert failed (non-fatal):', eventLogError);
     }
-    const finalSnapshot = await reconcileWallet({ userId });
+
+    let recomputed: any = { prediction };
+    try {
+      recomputed = await recomputePredictionState(predictionId);
+    } catch (recomputeError) {
+      console.warn('[FCZ-BET] prediction recompute failed (non-fatal):', recomputeError);
+    }
+
+    let latestEntry: any = null;
+    try {
+      const { data: latestEntryRow, error: latestEntryError } = await supabase
+        .from('prediction_entries')
+        .select('*')
+        .eq('id', entryId)
+        .single();
+      if (latestEntryError) {
+        console.warn('[FCZ-BET] Failed to fetch latest entry record:', latestEntryError);
+      } else {
+        latestEntry = latestEntryRow;
+      }
+    } catch (latestEntryFetchError) {
+      console.warn('[FCZ-BET] latest entry fetch failed (non-fatal):', latestEntryFetchError);
+    }
+
+    let finalSnapshot: any = walletSnapshot;
+    try {
+      finalSnapshot = await reconcileWallet({ userId });
+    } catch (walletReconcileError) {
+      console.warn('[FCZ-BET] wallet reconcile failed after bet (non-fatal):', walletReconcileError);
+    }
 
     console.log(`[FCZ-BET] Bet placed successfully: entry ${entryId}, lock ${lockId}`);
 
@@ -1279,7 +1306,6 @@ async function handlePlaceBet(req: any, res: any) {
     emitPredictionUpdate({ predictionId });
     emitWalletUpdate({ userId, reason: 'bet_placed' });
 
-    mutationLockCommit = true;
     return res.status(200).json({
       ok: true,
       entryId,
@@ -1287,7 +1313,7 @@ async function handlePlaceBet(req: any, res: any) {
       quoteUsed: quoteUsed ?? null,
       data: {
         prediction: enrichPredictionWithOddsV2(recomputed.prediction),
-        entry: latestEntryError ? null : latestEntry,
+        entry: latestEntry,
       },
       newEscrowReserved: finalSnapshot.reservedUSDC,
       newEscrowAvailable: finalSnapshot.availableToStakeUSDC
