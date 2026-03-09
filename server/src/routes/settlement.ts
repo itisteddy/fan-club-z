@@ -56,6 +56,33 @@ function toBytes32FromUuid(uuid: string): `0x${string}` {
   return `0x${hex}` as const;
 }
 
+async function resolvePredictionIdLenient(inputId: string): Promise<string> {
+  const candidate = String(inputId || '').trim().toLowerCase();
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidRegex.test(candidate)) return candidate;
+
+  // Recover truncated uuid-like ids by unique prefix against recent predictions.
+  const uuidishPrefixRegex = /^[0-9a-f-]{30,35}$/i;
+  if (!uuidishPrefixRegex.test(candidate)) return candidate;
+
+  try {
+    const { data, error } = await supabase
+      .from('predictions')
+      .select('id,created_at')
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error || !Array.isArray(data)) return candidate;
+    const matches = data.filter((p: any) => String(p?.id || '').toLowerCase().startsWith(candidate));
+    if (matches.length === 1 && matches[0]?.id) {
+      return String(matches[0].id);
+    }
+  } catch {
+    // Keep original candidate if resolver path fails.
+  }
+
+  return candidate;
+}
+
 // ---- Demo wallet helpers (DB-backed ledger) ----
 const DEMO_CURRENCY = 'DEMO_USD';
 const DEMO_PROVIDER = 'demo-wallet';
@@ -2432,12 +2459,13 @@ router.post('/manual/emerke', (req, _res, next) => {
 
 router.post('/manual/merkle', async (req, res) => {
   try {
-    const { predictionId, winningOptionId, userId, reason } = req.body as {
+    const { predictionId: rawPredictionId, winningOptionId, userId, reason } = req.body as {
       predictionId: string;
       winningOptionId: string;
       userId: string;
       reason?: string;
     };
+    let predictionId = String(rawPredictionId || '').trim();
 
     if (!predictionId || !winningOptionId || !userId) {
       return res.status(400).json({
@@ -2446,6 +2474,7 @@ router.post('/manual/merkle', async (req, res) => {
         version: VERSION
       });
     }
+    predictionId = await resolvePredictionIdLenient(predictionId);
 
     // Verify user is creator and load settled_at for idempotency
     const { data: prediction, error: predictionError } = await supabase
