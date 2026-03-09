@@ -83,6 +83,26 @@ async function resolvePredictionIdLenient(inputId: string): Promise<string> {
   return candidate;
 }
 
+async function resolvePredictionIdFromEntryId(inputId: string): Promise<string> {
+  const candidate = String(inputId || '').trim().toLowerCase();
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(candidate)) return candidate;
+
+  try {
+    const { data, error } = await supabase
+      .from('prediction_entries')
+      .select('prediction_id')
+      .eq('id', candidate)
+      .maybeSingle();
+    if (!error && data?.prediction_id) {
+      return String(data.prediction_id);
+    }
+  } catch {
+    // Keep original candidate if fallback lookup fails.
+  }
+  return candidate;
+}
+
 // ---- Demo wallet helpers (DB-backed ledger) ----
 const DEMO_CURRENCY = 'DEMO_USD';
 const DEMO_PROVIDER = 'demo-wallet';
@@ -2476,12 +2496,26 @@ router.post('/manual/merkle', async (req, res) => {
     }
     predictionId = await resolvePredictionIdLenient(predictionId);
 
-    // Verify user is creator and load settled_at for idempotency
-    const { data: prediction, error: predictionError } = await supabase
+    // Verify user is creator and load settled_at for idempotency.
+    // Fallback: if caller passed an entry UUID by mistake, map entry id -> prediction id.
+    let { data: prediction, error: predictionError } = await supabase
       .from('predictions')
       .select('id, creator_id, title, status, settled_at, winning_option_id, resolution_reason, resolution_source_url, platform_fee_percentage, creator_fee_percentage')
       .eq('id', predictionId)
       .single();
+    if (predictionError || !prediction) {
+      const resolvedFromEntry = await resolvePredictionIdFromEntryId(predictionId);
+      if (resolvedFromEntry !== predictionId) {
+        predictionId = resolvedFromEntry;
+        const retry = await supabase
+          .from('predictions')
+          .select('id, creator_id, title, status, settled_at, winning_option_id, resolution_reason, resolution_source_url, platform_fee_percentage, creator_fee_percentage')
+          .eq('id', predictionId)
+          .single();
+        prediction = retry.data as any;
+        predictionError = retry.error as any;
+      }
+    }
     if (predictionError || !prediction) {
       return res.status(404).json({
         error: 'Not found',
