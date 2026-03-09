@@ -25,6 +25,72 @@ function requestId(): string {
   return crypto.randomUUID?.() ?? `req_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+async function safeRecomputePrediction(predictionId: string, fallbackPrediction: any) {
+  try {
+    return await recomputePredictionState(predictionId);
+  } catch (recomputeError) {
+    console.warn('[FCZ-BET] recompute failed (non-fatal):', recomputeError);
+    return { prediction: fallbackPrediction };
+  }
+}
+
+function isMissingColumnError(err: any): boolean {
+  const code = String(err?.code || '');
+  const msg = String(err?.message || '').toLowerCase();
+  return code === '42703' || code === 'PGRST204' || msg.includes('does not exist') || msg.includes('could not find the column');
+}
+
+async function recoverAndTopUpEntry(args: {
+  entryId?: string | null;
+  userId: string;
+  predictionId: string;
+  optionId: string;
+  provider: string;
+  amountDelta: number;
+  estPayout?: number;
+}) {
+  const { entryId, userId, predictionId, optionId, provider, amountDelta, estPayout } = args;
+
+  const tryUpdate = async (targetId: string) => {
+    const { data: current } = await supabase
+      .from('prediction_entries')
+      .select('id, amount')
+      .eq('id', targetId)
+      .maybeSingle();
+    if (!current?.id) return { data: null, error: null as any };
+    const nextAmount = Number(current.amount || 0) + amountDelta;
+    const updated = await supabase
+      .from('prediction_entries')
+      .update({
+        amount: nextAmount,
+        potential_payout: estPayout ?? nextAmount,
+        updated_at: new Date().toISOString(),
+      } as any)
+      .eq('id', targetId)
+      .select('*')
+      .maybeSingle();
+    return { data: updated.data as any, error: updated.error as any };
+  };
+
+  if (entryId) {
+    const direct = await tryUpdate(entryId);
+    if (direct.data?.id || direct.error) return direct;
+  }
+
+  const { data: latest } = await supabase
+    .from('prediction_entries')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('prediction_id', predictionId)
+    .eq('option_id', optionId)
+    .eq('provider', provider)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!latest?.id) return { data: null, error: null as any };
+  return tryUpdate(String(latest.id));
+}
+
 /**
  * Map DB/Supabase errors to HTTP status + FCZ error code + user-facing message.
  * Returns { status, code, message } or null if unknown (caller uses 500).
@@ -142,11 +208,21 @@ async function handlePlaceBet(req: any, res: any) {
     console.log(`[FCZ-BET] Place bet request:`, { predictionId, optionId, amountUSD, userId });
 
     // Verify prediction exists and is open
-    const { data: prediction, error: predError } = await supabase
+    let { data: prediction, error: predError } = await supabase
       .from('predictions')
       .select('id, title, status, entry_deadline, pool_total, participant_count, odds_model, platform_fee_percentage, creator_fee_percentage')
       .eq('id', predictionId)
       .single();
+
+    if (predError && isMissingColumnError(predError)) {
+      const fallbackPrediction = await supabase
+        .from('predictions')
+        .select('id, title, status, entry_deadline')
+        .eq('id', predictionId)
+        .single();
+      prediction = fallbackPrediction.data as any;
+      predError = fallbackPrediction.error as any;
+    }
 
     if (predError || !prediction) {
       return res.status(404).json({
@@ -169,12 +245,23 @@ async function handlePlaceBet(req: any, res: any) {
     }
 
     // Verify option exists
-    const { data: option, error: optError } = await supabase
+    let { data: option, error: optError } = await supabase
       .from('prediction_options')
       .select('id, prediction_id, label, total_staked, current_odds')
       .eq('id', optionId)
       .eq('prediction_id', predictionId)
       .single();
+
+    if (optError && isMissingColumnError(optError)) {
+      const fallbackOption = await supabase
+        .from('prediction_options')
+        .select('id, prediction_id, label')
+        .eq('id', optionId)
+        .eq('prediction_id', predictionId)
+        .single();
+      option = fallbackOption.data as any;
+      optError = fallbackOption.error as any;
+    }
 
     if (optError || !option) {
       return res.status(404).json({
@@ -188,7 +275,17 @@ async function handlePlaceBet(req: any, res: any) {
 
     // Serialize same-market stake mutations in this app server to reduce race conditions on
     // pooled totals / aggregated positions before a full DB transaction rewrite.
-    mutationLock = await beginPredictionStakeLock(predictionId);
+    try {
+      mutationLock = await beginPredictionStakeLock(predictionId);
+    } catch (lockError: any) {
+      const lockMessage = String(lockError?.message || lockError || '');
+      console.warn('[FCZ-BET] stake lock unavailable:', { requestId: reqId, fundingMode, lockMessage });
+      if (fundingMode === 'demo' || fundingMode === 'fiat') {
+        mutationLock = null;
+      } else {
+        throw lockError;
+      }
+    }
 
     let quoteUsed: any = null;
     let quoteSameOutcomeEntry: any = null;
@@ -379,17 +476,15 @@ async function handlePlaceBet(req: any, res: any) {
       let entry: any = null;
       const isTopUp = Boolean(quoteSameOutcomeEntry?.id);
       if (isTopUp) {
-        const nextAmount = Number(quoteSameOutcomeEntry.amount || 0) + amountUSD;
-        const { data: updatedEntry, error: updateErr } = await supabase
-          .from('prediction_entries')
-          .update({
-            amount: nextAmount,
-            potential_payout: quoteUsed?.after?.estPayout ?? nextAmount,
-            updated_at: new Date().toISOString(),
-          } as any)
-          .eq('id', quoteSameOutcomeEntry.id)
-          .select('*')
-          .single();
+        const { data: updatedEntry, error: updateErr } = await recoverAndTopUpEntry({
+          entryId: quoteSameOutcomeEntry?.id,
+          userId,
+          predictionId,
+          optionId,
+          provider: PROVIDER,
+          amountDelta: amountUSD,
+          estPayout: quoteUsed?.after?.estPayout,
+        });
         if (updateErr || !updatedEntry?.id) {
           console.error('[FCZ-BET] demo entry top-up failed', { requestId: reqId, error: updateErr });
           return res.status(500).json({
@@ -464,24 +559,28 @@ async function handlePlaceBet(req: any, res: any) {
         }
       });
 
-      await insertPositionStakeEvent({
-        userId,
-        predictionId,
-        optionId,
-        entryId: entry.id,
-        amount: amountUSD,
-        mode: 'DEMO',
-        quoteSnapshot: quoteUsed,
-        metadata: {
-          fundingMode: 'demo',
-          lockId,
-          requestId: reqId,
-        },
-      });
+      try {
+        await insertPositionStakeEvent({
+          userId,
+          predictionId,
+          optionId,
+          entryId: entry.id,
+          amount: amountUSD,
+          mode: 'DEMO',
+          quoteSnapshot: quoteUsed,
+          metadata: {
+            fundingMode: 'demo',
+            lockId,
+            requestId: reqId,
+          },
+        });
+      } catch (err) {
+        console.warn('[FCZ-BET] demo insertPositionStakeEvent failed (non-fatal):', err);
+      }
 
-      const recomputed = await recomputePredictionState(predictionId);
-      emitPredictionUpdate({ predictionId });
-      emitWalletUpdate({ userId, reason: 'bet_placed' });
+      const recomputed = await safeRecomputePrediction(predictionId, prediction);
+      try { emitPredictionUpdate({ predictionId }); } catch (err) { console.warn('[FCZ-BET] demo emitPredictionUpdate failed (non-fatal):', err); }
+      try { emitWalletUpdate({ userId, reason: 'bet_placed' }); } catch (err) { console.warn('[FCZ-BET] demo emitWalletUpdate failed (non-fatal):', err); }
 
       mutationLockCommit = true;
       return res.status(200).json({
@@ -754,9 +853,9 @@ async function handlePlaceBet(req: any, res: any) {
         }
       });
 
-      const recomputed = await recomputePredictionState(predictionId);
-      emitPredictionUpdate({ predictionId });
-      emitWalletUpdate({ userId, reason: 'bet_placed' });
+      const recomputed = await safeRecomputePrediction(predictionId, prediction);
+      try { emitPredictionUpdate({ predictionId }); } catch (err) { console.warn('[FCZ-BET] fiat emitPredictionUpdate failed (non-fatal):', err); }
+      try { emitWalletUpdate({ userId, reason: 'bet_placed' }); } catch (err) { console.warn('[FCZ-BET] fiat emitWalletUpdate failed (non-fatal):', err); }
 
       mutationLockCommit = true;
       return res.status(200).json({
@@ -1067,16 +1166,15 @@ async function handlePlaceBet(req: any, res: any) {
 
     if (isTopUp && existingEntry) {
       totalEntryAmount = Number(existingEntry.amount || 0) + amountUSD;
-      const { data: updatedEntry, error: updateError } = await supabase
-        .from('prediction_entries')
-        .update({
-          amount: totalEntryAmount,
-          potential_payout: quoteUsed?.after?.estPayout ?? totalEntryAmount,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', existingEntry.id)
-        .select('id')
-        .single();
+      const { data: updatedEntry, error: updateError } = await recoverAndTopUpEntry({
+        entryId: existingEntry?.id,
+        userId,
+        predictionId,
+        optionId,
+        provider: 'crypto-base-usdc',
+        amountDelta: amountUSD,
+        estPayout: quoteUsed?.after?.estPayout,
+      });
 
       if (updateError) {
         console.error('[FCZ-BET] Error updating existing entry:', updateError);
@@ -1092,7 +1190,20 @@ async function handlePlaceBet(req: any, res: any) {
         });
       }
 
-      entryId = updatedEntry?.id || existingEntry.id;
+      if (!updatedEntry?.id) {
+        await supabase
+          .from('escrow_locks')
+          .update({ state: 'released', status: 'released', released_at: new Date().toISOString() })
+          .eq('id', lockId);
+        return res.status(500).json({
+          code: 'FCZ_DATABASE_ERROR',
+          error: 'entry_update_failed',
+          message: 'Failed to increase your stake on this option',
+          requestId: reqId,
+          version: VERSION,
+        });
+      }
+      entryId = updatedEntry.id;
     } else {
       const { data: entry, error: entryError } = await supabase
         .from('prediction_entries')
@@ -1202,38 +1313,45 @@ async function handlePlaceBet(req: any, res: any) {
       console.log('[FCZ-BET] ✅ Wallet transaction recorded:', walletTxData?.id);
     }
 
-    await insertPositionStakeEvent({
-      userId,
-      predictionId,
-      optionId,
-      entryId,
-      amount: amountUSD,
-      mode: 'REAL',
-      quoteSnapshot: quoteUsed,
-      metadata: {
-        fundingMode: 'crypto',
-        lockId,
-        requestId: reqId,
-      },
-    });
-
-    // Emit event_log
-    await supabase
-      .from('event_log')
-      .insert({
-        source: 'place_bet',
-        kind: 'prediction.entry.created',
-        ref: entryId,
-        payload: {
-          prediction_id: predictionId,
-          option_id: optionId,
-          user_id: userId,
-          amount: amountUSD,
-          lock_id: lockId
-        }
+    try {
+      await insertPositionStakeEvent({
+        userId,
+        predictionId,
+        optionId,
+        entryId,
+        amount: amountUSD,
+        mode: 'REAL',
+        quoteSnapshot: quoteUsed,
+        metadata: {
+          fundingMode: 'crypto',
+          lockId,
+          requestId: reqId,
+        },
       });
+    } catch (err) {
+      console.warn('[FCZ-BET] crypto insertPositionStakeEvent failed (non-fatal):', err);
+    }
 
-    const recomputed = await recomputePredictionState(predictionId);
+    try {
+      await supabase
+        .from('event_log')
+        .insert({
+          source: 'place_bet',
+          kind: 'prediction.entry.created',
+          ref: entryId,
+          payload: {
+            prediction_id: predictionId,
+            option_id: optionId,
+            user_id: userId,
+            amount: amountUSD,
+            lock_id: lockId
+          }
+        });
+    } catch (err) {
+      console.warn('[FCZ-BET] crypto event_log insert failed (non-fatal):', err);
+    }
+
+    const recomputed = await safeRecomputePrediction(predictionId, prediction);
     const { data: latestEntry, error: latestEntryError } = await supabase
       .from('prediction_entries')
       .select('*')
@@ -1242,13 +1360,18 @@ async function handlePlaceBet(req: any, res: any) {
     if (latestEntryError) {
       console.warn('[FCZ-BET] Failed to fetch latest entry record:', latestEntryError);
     }
-    const finalSnapshot = await reconcileWallet({ userId });
+    let finalSnapshot = walletSnapshot;
+    try {
+      finalSnapshot = await reconcileWallet({ userId });
+    } catch (err) {
+      console.warn('[FCZ-BET] final reconcileWallet failed (non-fatal):', err);
+    }
 
     console.log(`[FCZ-BET] Bet placed successfully: entry ${entryId}, lock ${lockId}`);
 
     // Realtime notifications
-    emitPredictionUpdate({ predictionId });
-    emitWalletUpdate({ userId, reason: 'bet_placed' });
+    try { emitPredictionUpdate({ predictionId }); } catch (err) { console.warn('[FCZ-BET] crypto emitPredictionUpdate failed (non-fatal):', err); }
+    try { emitWalletUpdate({ userId, reason: 'bet_placed' }); } catch (err) { console.warn('[FCZ-BET] crypto emitWalletUpdate failed (non-fatal):', err); }
 
     mutationLockCommit = true;
     return res.status(200).json({
