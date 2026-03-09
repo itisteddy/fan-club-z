@@ -493,26 +493,40 @@ async function handlePlaceBet(req: any, res: any) {
         }
       });
 
-      await insertPositionStakeEvent({
-        userId,
-        predictionId,
-        optionId,
-        entryId: entry.id,
-        amount: amountUSD,
-        mode: 'DEMO',
-        quoteSnapshot: quoteUsed,
-        metadata: {
-          fundingMode: 'demo',
-          lockId,
-          requestId: reqId,
-        },
-      });
-
-      const recomputed = await recomputePredictionState(predictionId);
-      emitPredictionUpdate({ predictionId });
-      emitWalletUpdate({ userId, reason: 'bet_placed' });
-
       mutationLockCommit = true;
+      // Best-effort side effects: successful demo bet should not fail if telemetry/recompute drifts.
+      try {
+        await insertPositionStakeEvent({
+          userId,
+          predictionId,
+          optionId,
+          entryId: entry.id,
+          amount: amountUSD,
+          mode: 'DEMO',
+          quoteSnapshot: quoteUsed,
+          metadata: {
+            fundingMode: 'demo',
+            lockId,
+            requestId: reqId,
+          },
+        });
+      } catch (positionEventError) {
+        console.warn('[FCZ-BET] demo position event failed (non-fatal):', positionEventError);
+      }
+
+      let recomputed: any = { prediction };
+      try {
+        recomputed = await recomputePredictionState(predictionId);
+      } catch (recomputeError) {
+        console.warn('[FCZ-BET] demo recompute failed (non-fatal):', recomputeError);
+      }
+      try {
+        emitPredictionUpdate({ predictionId });
+        emitWalletUpdate({ userId, reason: 'bet_placed' });
+      } catch (realtimeError) {
+        console.warn('[FCZ-BET] demo realtime emit failed (non-fatal):', realtimeError);
+      }
+
       return res.status(200).json({
         ok: true,
         entryId: entry.id,
@@ -783,11 +797,20 @@ async function handlePlaceBet(req: any, res: any) {
         }
       });
 
-      const recomputed = await recomputePredictionState(predictionId);
-      emitPredictionUpdate({ predictionId });
-      emitWalletUpdate({ userId, reason: 'bet_placed' });
-
       mutationLockCommit = true;
+      let recomputed: any = { prediction };
+      try {
+        recomputed = await recomputePredictionState(predictionId);
+      } catch (recomputeError) {
+        console.warn('[FCZ-BET] fiat recompute failed (non-fatal):', recomputeError);
+      }
+      try {
+        emitPredictionUpdate({ predictionId });
+        emitWalletUpdate({ userId, reason: 'bet_placed' });
+      } catch (realtimeError) {
+        console.warn('[FCZ-BET] fiat realtime emit failed (non-fatal):', realtimeError);
+      }
+
       return res.status(200).json({
         ok: true,
         entryId: entry.id,
