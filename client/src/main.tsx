@@ -23,6 +23,7 @@ import { Capacitor } from '@capacitor/core'
 import { Browser } from '@capacitor/browser'
 import { isNativeIOSRuntime } from './config/native'
 import { parseDeepLink } from './utils/deepLinking'
+import { recoverFromModuleLoadError } from './utils/moduleRecovery'
 
 // Centralized version management
 console.log(`🚀 Fan Club Z ${APP_VERSION} - CONSOLIDATED ARCHITECTURE - SINGLE SOURCE OF TRUTH`)
@@ -247,11 +248,7 @@ window.addEventListener('error', (event) => {
   if (isModuleLoadError) {
     console.warn('🔄 [GLOBAL] Module loading error detected - triggering hard reload');
     event.preventDefault();
-    // Clear caches and reload
-    if ('caches' in window) {
-      caches.keys().then(names => names.forEach(name => caches.delete(name)));
-    }
-    window.location.reload();
+    void recoverFromModuleLoadError();
   }
 });
 
@@ -265,10 +262,7 @@ window.addEventListener('unhandledrejection', (event) => {
   if (isModuleLoadError) {
     console.warn('🔄 [GLOBAL] Unhandled module loading rejection - triggering hard reload');
     event.preventDefault();
-    if ('caches' in window) {
-      caches.keys().then(names => names.forEach(name => caches.delete(name)));
-    }
-    window.location.reload();
+    void recoverFromModuleLoadError();
   }
 });
 

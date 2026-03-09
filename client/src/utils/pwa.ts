@@ -29,6 +29,25 @@ export class PWAManager {
   }
 
   private init() {
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+    const isVercelSurface = hostname.endsWith('.vercel.app');
+
+    // Never run service worker on vercel preview/staging surfaces.
+    // Those surfaces redeploy frequently and stale SW caches create chunk hash mismatches.
+    if (isVercelSurface) {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          registrations.forEach((registration) => {
+            console.log('[PWA] Unregistering service worker on Vercel surface:', registration.scope);
+            registration.unregister();
+          });
+        }).catch((err) => {
+          console.warn('[PWA] Failed to unregister service workers on Vercel surface:', err);
+        });
+      }
+      return;
+    }
+
     // Phase 5: Service worker should NEVER register in iOS/native builds
     // Service workers are web-only and cause issues in native WebViews:
     // - Stale auth state
