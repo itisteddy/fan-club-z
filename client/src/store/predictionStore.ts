@@ -775,6 +775,10 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           if (errorData.error === 'BETTING_DISABLED') {
             throw new Error('Betting is temporarily unavailable. Please try again later.');
           }
+          if (response.status === 404 && (errorData as any)?.error === 'option_not_found') {
+            await get().fetchPredictionById(predictionId);
+            throw new Error('Prediction options changed. Please re-select an option and try again.');
+          }
           throw new Error(placeBetErrorFromResponse(response.status, errorData));
         }
 
@@ -856,6 +860,10 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           }
           if ((errorData as any).error === 'BETTING_DISABLED') {
             throw new Error('Betting is temporarily unavailable. Please try again later.');
+          }
+          if (response.status === 404 && (errorData as any)?.error === 'option_not_found') {
+            await get().fetchPredictionById(predictionId);
+            throw new Error('Prediction options changed. Please re-select an option and try again.');
           }
           throw new Error(placeBetErrorFromResponse(response.status, errorData));
         }
@@ -951,6 +959,10 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
           }
           if (errorData.error === 'BETTING_DISABLED') {
             throw new Error('Betting is temporarily unavailable. Please try again later.');
+          }
+          if (response.status === 404 && (errorData as any)?.error === 'option_not_found') {
+            await get().fetchPredictionById(predictionId);
+            throw new Error('Prediction options changed. Please re-select an option and try again.');
           }
           throw new Error(placeBetErrorFromResponse(response.status, errorData));
         }
@@ -1082,6 +1094,10 @@ export const usePredictionStore = create<PredictionState & PredictionActions>((s
         }
         if (errorData.error === 'BETTING_DISABLED') {
           throw new Error('Betting is temporarily unavailable. Please try again later.');
+        }
+        if (response.status === 404 && (errorData as any)?.error === 'option_not_found') {
+          await get().fetchPredictionById(predictionId);
+          throw new Error('Prediction options changed. Please re-select an option and try again.');
         }
         throw new Error(placeBetErrorFromResponse(response.status, errorData));
       }

@@ -2424,6 +2424,12 @@ router.get('/claimable', async (req, res) => {
 //      Client identity (mobile/web/admin) is NEVER a reason to skip crypto settlement.
 //
 // No crypto gate on this endpoint. Client gating is UI-only.
+// Backward compatibility: some stale clients call "/manual/emerke" (typo).
+router.post('/manual/emerke', (req, _res, next) => {
+  req.url = '/manual/merkle';
+  next();
+});
+
 router.post('/manual/merkle', async (req, res) => {
   try {
     const { predictionId, winningOptionId, userId, reason } = req.body as {

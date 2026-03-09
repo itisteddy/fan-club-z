@@ -99,6 +99,33 @@ const publicProfileReadRateLimit = createSimpleIpRateLimiter({
   max: 60,
 });
 
+function isMissingColumnError(error: any): boolean {
+  const msg = String(error?.message || '').toLowerCase();
+  const code = String(error?.code || '');
+  return code === '42703' || code === 'PGRST204' || msg.includes('does not exist') || msg.includes('could not find the column');
+}
+
+async function fetchCreatedPredictionsForStats(userId: string) {
+  const primary = await supabase
+    .from('predictions')
+    .select('id, status, pool_total', { count: 'exact' })
+    .eq('creator_id', userId);
+  if (!primary.error) return primary;
+  if (!isMissingColumnError(primary.error)) return primary;
+
+  const fallback = await supabase
+    .from('predictions')
+    .select('id, status', { count: 'exact' })
+    .eq('creator_id', userId);
+
+  if (fallback.error) return fallback as any;
+  return {
+    data: (fallback.data || []).map((p: any) => ({ ...p, pool_total: 0 })),
+    error: null,
+    count: fallback.count,
+  } as any;
+}
+
 async function buildPublicProfilePayload(userId: string) {
   // TODO(ugc-blocking): apply block/ban visibility rules here when item 6 ships.
   const { data: user, error } = await supabase
@@ -114,10 +141,7 @@ async function buildPublicProfilePayload(userId: string) {
   }
 
   const [createdPredictions, participatedPredictions, achievements] = await Promise.all([
-    supabase
-      .from('predictions')
-      .select('id, status, pool_total', { count: 'exact' })
-      .eq('creator_id', userId),
+    fetchCreatedPredictionsForStats(userId),
     supabase
       .from('prediction_entries')
       .select('id, status, amount, actual_payout', { count: 'exact' })
@@ -823,10 +847,7 @@ router.get('/:id', async (req, res) => {
 
     // Get user's prediction statistics
     const [createdPredictions, participatedPredictions] = await Promise.all([
-      supabase
-        .from('predictions')
-        .select('id, status, pool_total', { count: 'exact' })
-        .eq('creator_id', id),
+      fetchCreatedPredictionsForStats(id),
       supabase
         .from('prediction_entries')
         .select('id, status, amount, actual_payout', { count: 'exact' })
@@ -837,9 +858,18 @@ router.get('/:id', async (req, res) => {
     const stats = {
       predictionsCreated: createdPredictions.count || 0,
       predictionsParticipated: participatedPredictions.count || 0,
-      totalVolume: createdPredictions.data?.reduce((sum, pred) => sum + (pred.pool_total || 0), 0) || 0,
-      totalInvested: participatedPredictions.data?.reduce((sum, entry) => sum + (entry.amount || 0), 0) || 0,
-      totalEarnings: participatedPredictions.data?.reduce((sum, entry) => sum + (entry.actual_payout || 0), 0) || 0,
+      totalVolume: createdPredictions.data?.reduce(
+        (sum: number, pred: any) => sum + (Number(pred?.pool_total) || 0),
+        0
+      ) || 0,
+      totalInvested: participatedPredictions.data?.reduce(
+        (sum: number, entry: any) => sum + (Number(entry?.amount) || 0),
+        0
+      ) || 0,
+      totalEarnings: participatedPredictions.data?.reduce(
+        (sum: number, entry: any) => sum + (Number(entry?.actual_payout) || 0),
+        0
+      ) || 0,
       winRate: 0 // Will calculate based on won vs total predictions
     };
 

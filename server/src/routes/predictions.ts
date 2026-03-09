@@ -216,6 +216,12 @@ function checkETag(req: express.Request, res: express.Response, data: unknown): 
 
 const router = express.Router();
 
+function isMissingColumnError(error: any): boolean {
+  const code = String(error?.code || '');
+  const msg = String(error?.message || '').toLowerCase();
+  return code === '42703' || code === 'PGRST204' || msg.includes('does not exist') || msg.includes('could not find the column');
+}
+
 async function resolveAuthenticatedUserId(req: express.Request): Promise<string | null> {
   try {
     const authHeader = req.headers.authorization;
@@ -814,6 +820,12 @@ router.get('/trending', async (req, res) => {
 // Statuses that count as "completed" (not active) for the Completed tab
 const COMPLETED_STATUSES = ['closed', 'awaiting_settlement', 'settled', 'disputed', 'cancelled', 'refunded', 'ended'] as const;
 
+function isMissingPredictionsColumnError(error: any): boolean {
+  const msg = String(error?.message || '').toLowerCase();
+  const code = String(error?.code || '');
+  return code === '42703' || code === 'PGRST204' || msg.includes('does not exist') || msg.includes('could not find the column');
+}
+
 // GET /api/v2/predictions/completed/:userId - Completed predictions for user (creator OR participant)
 router.get('/completed/:userId', requireSupabaseAuth, async (req, res) => {
   const { userId } = req.params;
@@ -830,7 +842,7 @@ router.get('/completed/:userId', requireSupabaseAuth, async (req, res) => {
     }
 
     // 1) Creator-owned completed predictions
-    const { data: creatorPredictions, error: creatorError } = await supabase
+    let { data: creatorPredictions, error: creatorError } = await supabase
       .from('predictions')
       .select(`
         *,
@@ -842,6 +854,23 @@ router.get('/completed/:userId', requireSupabaseAuth, async (req, res) => {
       .order('settled_at', { ascending: false, nullsFirst: false })
       .order('updated_at', { ascending: false })
       .limit(100);
+
+    // Backward compatibility when settled_at does not exist yet on staging schema.
+    if (creatorError && isMissingPredictionsColumnError(creatorError)) {
+      const fallbackCreator = await supabase
+        .from('predictions')
+        .select(`
+          *,
+          creator:users!creator_id(id, username, full_name, avatar_url, is_verified),
+          options:prediction_options!prediction_options_prediction_id_fkey(*)
+        `)
+        .eq('creator_id', userId)
+        .in('status', [...COMPLETED_STATUSES])
+        .order('updated_at', { ascending: false })
+        .limit(100);
+      creatorPredictions = fallbackCreator.data as any;
+      creatorError = fallbackCreator.error as any;
+    }
 
     if (creatorError) {
       console.error('Error fetching creator completed predictions:', creatorError);
@@ -1287,33 +1316,52 @@ router.post('/', requireSupabaseAuth, requireTermsAccepted, async (req, res) => 
     }
 
     // Create prediction in database (bypass RLS with service role)
-    const { data: prediction, error: predictionError } = await supabase
+    const fullPredictionInsertPayload: any = {
+      creator_id: currentUserId,
+      title: title.trim(),
+      description: description?.trim() || null,
+      category: resolvedCategorySlug, // Keep legacy field for backward compatibility
+      category_id: resolvedCategoryId, // New field
+      type,
+      status: 'open',
+      stake_min: stakeMin || 1,
+      stake_max: stakeMax || null,
+      pool_total: 0,
+      entry_deadline: entryDeadline,
+      settlement_method: settlementMethod || 'manual',
+      is_private: isPrivate || false,
+      creator_fee_percentage: 1.0,
+      platform_fee_percentage: 2.5,
+      odds_model: process.env.FLAG_ODDS_V2 === '1' ? 'pool_v2' : 'legacy',
+      tags: [resolvedCategorySlug],
+      participant_count: 0,
+      likes_count: 0,
+      comments_count: 0,
+      image_url: finalImageUrl // Optional: creator upload URL or null (random image later)
+    };
+
+    let { data: prediction, error: predictionError } = await supabase
       .from('predictions')
-      .insert({
+      .insert(fullPredictionInsertPayload)
+      .select()
+      .single();
+
+    if (predictionError && isMissingColumnError(predictionError)) {
+      const minimalPredictionPayload: any = {
         creator_id: currentUserId,
         title: title.trim(),
         description: description?.trim() || null,
-        category: resolvedCategorySlug, // Keep legacy field for backward compatibility
-        category_id: resolvedCategoryId, // New field
-        type,
         status: 'open',
-        stake_min: stakeMin || 1,
-        stake_max: stakeMax || null,
-        pool_total: 0,
         entry_deadline: entryDeadline,
-        settlement_method: settlementMethod || 'manual',
-        is_private: isPrivate || false,
-        creator_fee_percentage: 1.0,
-        platform_fee_percentage: 2.5,
-        odds_model: process.env.FLAG_ODDS_V2 === '1' ? 'pool_v2' : 'legacy',
-        tags: [resolvedCategorySlug],
-        participant_count: 0,
-        likes_count: 0,
-        comments_count: 0,
-        image_url: finalImageUrl // Optional: creator upload URL or null (random image later)
-      })
-      .select()
-      .single();
+      };
+      const fallbackInsert = await supabase
+        .from('predictions')
+        .insert(minimalPredictionPayload)
+        .select()
+        .single();
+      prediction = fallbackInsert.data as any;
+      predictionError = fallbackInsert.error as any;
+    }
 
     if (predictionError) {
       console.error('Error creating prediction:', predictionError);
@@ -1335,10 +1383,24 @@ router.post('/', requireSupabaseAuth, requireTermsAccepted, async (req, res) => 
         current_odds: Number(option.currentOdds) || 2.0,
       }));
 
-      const { data: createdOptions, error: optionsError } = await supabase
+      let { data: createdOptions, error: optionsError } = await supabase
         .from('prediction_options')
         .insert(optionData)
         .select('*');
+
+      if (optionsError && isMissingColumnError(optionsError)) {
+        const fallbackOptionData = normalizedOptions.map((option: any, index: number) => ({
+          prediction_id: prediction.id,
+          label: option.label || `Option ${index + 1}`,
+          sort_order: index,
+        }));
+        const fallbackOptions = await supabase
+          .from('prediction_options')
+          .insert(fallbackOptionData)
+          .select('*');
+        createdOptions = fallbackOptions.data as any;
+        optionsError = fallbackOptions.error as any;
+      }
 
       if (optionsError) {
         console.error('❌ Error creating prediction options:', optionsError);
@@ -1350,7 +1412,7 @@ router.post('/', requireSupabaseAuth, requireTermsAccepted, async (req, res) => 
     }
 
     // Fetch the complete prediction with options and creator info
-    const { data: completePrediction, error: fetchError } = await supabase
+    let { data: completePrediction, error: fetchError } = await supabase
       .from('predictions')
       .select(`
         *,
@@ -1359,6 +1421,20 @@ router.post('/', requireSupabaseAuth, requireTermsAccepted, async (req, res) => 
       `)
       .eq('id', prediction.id)
       .single();
+
+    if (fetchError && isMissingColumnError(fetchError)) {
+      const fallbackFetch = await supabase
+        .from('predictions')
+        .select(`
+          *,
+          creator:users!creator_id(id, username, full_name, avatar_url),
+          options:prediction_options!prediction_options_prediction_id_fkey(*)
+        `)
+        .eq('id', prediction.id)
+        .single();
+      completePrediction = fallbackFetch.data as any;
+      fetchError = fallbackFetch.error as any;
+    }
 
     if (fetchError) {
       console.error('Error fetching complete prediction:', fetchError);

@@ -17,6 +17,12 @@ const getOptionLabel = (option: MaybeArray<{ label?: string }>): string | null =
   return pickFirst(option)?.label ?? null;
 };
 
+function isMissingColumnError(error: any): boolean {
+  const code = String(error?.code || '');
+  const msg = String(error?.message || '').toLowerCase();
+  return code === '42703' || code === 'PGRST204' || msg.includes('does not exist') || msg.includes('could not find the column');
+}
+
 // GET /api/v2/activity/predictions/:id - Get activity feed for a prediction
 router.get('/predictions/:id', async (req, res) => {
   try {
@@ -189,10 +195,26 @@ router.get('/user/:userId', async (req, res) => {
       createdPredictionsQuery = createdPredictionsQuery.lt('created_at', cursorIso);
     }
 
-    const [{ data: betEntries, error: betError }, { data: createdPredictions, error: createdError }] = await Promise.all([
+    let [{ data: betEntries, error: betError }, { data: createdPredictions, error: createdError }] = await Promise.all([
       userEntriesQuery,
       createdPredictionsQuery,
     ]);
+
+    // Backward compatibility: some DBs may not have predictions.category.
+    if (createdError && isMissingColumnError(createdError)) {
+      let fallbackCreatedQuery = supabase
+        .from('predictions')
+        .select('id, title, status, created_at, entry_deadline')
+        .eq('creator_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(limitNum);
+      if (cursorIso) {
+        fallbackCreatedQuery = fallbackCreatedQuery.lt('created_at', cursorIso);
+      }
+      const fallback = await fallbackCreatedQuery;
+      createdPredictions = (fallback.data || []).map((p: any) => ({ ...p, category: null }));
+      createdError = fallback.error as any;
+    }
 
     if (betError) {
       console.error('[activity] Failed to load user bet entries:', betError);
@@ -218,13 +240,26 @@ router.get('/user/:userId', async (req, res) => {
 
     console.log(`[activity] Fetching wallet_transactions for user: ${userId}, channels: ${walletChannels.join(', ')}`);
 
-    const { data: betTransactions, error: txError } = await supabase
+    let { data: betTransactions, error: txError } = await supabase
       .from('wallet_transactions')
       .select('id, created_at, amount, currency, meta, prediction_id, channel, description, direction, provider, entry_id')
       .in('channel', walletChannels)
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(limitNum);
+
+    // Backward compatibility: older schemas may not include wallet_transactions.entry_id.
+    if (txError && isMissingColumnError(txError)) {
+      const fallbackTx = await supabase
+        .from('wallet_transactions')
+        .select('id, created_at, amount, currency, meta, prediction_id, channel, description, direction, provider')
+        .in('channel', walletChannels)
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(limitNum);
+      betTransactions = (fallbackTx.data || []).map((tx: any) => ({ ...tx, entry_id: null }));
+      txError = fallbackTx.error as any;
+    }
 
     if (txError) {
       console.error('[activity] Failed to load user wallet transactions:', txError);

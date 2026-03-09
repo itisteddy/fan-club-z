@@ -46,6 +46,12 @@ function mapDbError(err: any): { status: number; code: string; message: string }
   }
 }
 
+function isMissingColumnError(err: any): boolean {
+  const code = String(err?.code || '');
+  const msg = String(err?.message || '').toLowerCase();
+  return code === '42703' || code === 'PGRST204' || msg.includes('does not exist') || msg.includes('could not find the column');
+}
+
 /**
  * POST /api/predictions/:predictionId/place-bet
  * Atomic, idempotent bet placement. Requires Authorization: Bearer <Supabase access_token>.
@@ -142,11 +148,22 @@ async function handlePlaceBet(req: any, res: any) {
     console.log(`[FCZ-BET] Place bet request:`, { predictionId, optionId, amountUSD, userId });
 
     // Verify prediction exists and is open
-    const { data: prediction, error: predError } = await supabase
+    let { data: prediction, error: predError } = await supabase
       .from('predictions')
       .select('id, title, status, entry_deadline, pool_total, participant_count, odds_model, platform_fee_percentage, creator_fee_percentage')
       .eq('id', predictionId)
       .single();
+
+    // Backward compatibility: older staging schema may lack some selected columns.
+    if (predError && isMissingColumnError(predError)) {
+      const fallbackPrediction = await supabase
+        .from('predictions')
+        .select('id, title, status, entry_deadline')
+        .eq('id', predictionId)
+        .single();
+      prediction = fallbackPrediction.data as any;
+      predError = fallbackPrediction.error as any;
+    }
 
     if (predError || !prediction) {
       return res.status(404).json({
@@ -169,12 +186,24 @@ async function handlePlaceBet(req: any, res: any) {
     }
 
     // Verify option exists
-    const { data: option, error: optError } = await supabase
+    let { data: option, error: optError } = await supabase
       .from('prediction_options')
       .select('id, prediction_id, label, total_staked, current_odds')
       .eq('id', optionId)
       .eq('prediction_id', predictionId)
       .single();
+
+    // Backward compatibility: older staging schema may not have total_staked/current_odds.
+    if (optError && isMissingColumnError(optError)) {
+      const fallbackOption = await supabase
+        .from('prediction_options')
+        .select('id, prediction_id, label')
+        .eq('id', optionId)
+        .eq('prediction_id', predictionId)
+        .single();
+      option = fallbackOption.data as any;
+      optError = fallbackOption.error as any;
+    }
 
     if (optError || !option) {
       return res.status(404).json({

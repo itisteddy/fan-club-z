@@ -24,36 +24,74 @@ function todayKey(): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function isMissingColumnError(e: any): boolean {
+  const msg = String(e?.message ?? e?.error_description ?? e ?? '');
+  const code = String(e?.code ?? e?.error ?? '');
+  return (
+    code === '42703' ||
+    code === 'PGRST204' ||
+    msg.includes('does not exist') ||
+    msg.includes('Could not find the column')
+  );
+}
+
 async function ensureDemoWalletRow(userId: string) {
-  await supabase
+  const fullPayload = {
+    user_id: userId,
+    currency: CURRENCY,
+    available_balance: 0,
+    reserved_balance: 0,
+    demo_credits_balance: 0,
+    creator_earnings_balance: 0,
+    stake_balance: 0,
+    updated_at: new Date().toISOString(),
+  } as any;
+  const { error } = await supabase
     .from('wallets')
-    .upsert(
-      {
-        user_id: userId,
-        currency: CURRENCY,
-        available_balance: 0,
-        reserved_balance: 0,
-        demo_credits_balance: 0,
-        creator_earnings_balance: 0,
-        stake_balance: 0,
-        updated_at: new Date().toISOString()
-      } as any,
-      { onConflict: 'user_id,currency', ignoreDuplicates: true }
-    );
+    .upsert(fullPayload, { onConflict: 'user_id,currency', ignoreDuplicates: true });
+  if (error && isMissingColumnError(error)) {
+    const minimalPayload = {
+      user_id: userId,
+      currency: CURRENCY,
+      available_balance: 0,
+      reserved_balance: 0,
+      updated_at: new Date().toISOString(),
+    };
+    await supabase
+      .from('wallets')
+      .upsert(minimalPayload, { onConflict: 'user_id,currency', ignoreDuplicates: true });
+  } else if (error) {
+    throw error;
+  }
 }
 
 async function fetchDemoSummary(userId: string) {
   await ensureDemoWalletRow(userId);
-  const { data, error } = await supabase
+  const selectCols = 'available_balance, reserved_balance, demo_credits_balance, updated_at';
+  let data: any = null;
+  let error: any = null;
+  ({ data, error } = await supabase
     .from('wallets')
-    .select('available_balance, reserved_balance, demo_credits_balance, updated_at')
+    .select(selectCols)
     .eq('user_id', userId)
     .eq('currency', CURRENCY)
-    .maybeSingle();
-  if (error) throw error;
-  const available = Number(((data as any)?.demo_credits_balance ?? (data as any)?.available_balance) || 0);
-  const reserved = Number((data as any)?.reserved_balance || 0);
-  const updatedAt = (data as any)?.updated_at ? new Date((data as any).updated_at).toISOString() : new Date().toISOString();
+    .maybeSingle());
+  if (error && isMissingColumnError(error)) {
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from('wallets')
+      .select('available_balance, reserved_balance, updated_at')
+      .eq('user_id', userId)
+      .eq('currency', CURRENCY)
+      .maybeSingle();
+    if (fallbackError) throw fallbackError;
+    data = fallbackData;
+  } else if (error) {
+    throw error;
+  }
+  const row = data as any;
+  const available = Number((row?.demo_credits_balance ?? row?.available_balance) ?? 0);
+  const reserved = Number(row?.reserved_balance ?? 0);
+  const updatedAt = row?.updated_at ? new Date(row.updated_at).toISOString() : new Date().toISOString();
   return { currency: CURRENCY, available, reserved, total: available + reserved, lastUpdated: updatedAt };
 }
 
@@ -92,7 +130,7 @@ demoWallet.post('/faucet', async (req, res) => {
     await ensureDemoWalletRow(userId);
 
     // Idempotent: 1 faucet/day per user (provider, external_ref unique)
-    const { error: txErr } = await supabase.from('wallet_transactions').insert({
+    let { error: txErr } = await supabase.from('wallet_transactions').insert({
       user_id: userId,
       direction: 'credit',
       // Use 'deposit' to satisfy older wallet_transactions_type_check variants in existing DBs
@@ -106,6 +144,22 @@ demoWallet.post('/faucet', async (req, res) => {
       description: 'Demo credits faucet',
       meta: { kind: 'demo_faucet', day },
     } as any);
+
+    // Backward compatibility for older schemas missing direction/description.
+    if (txErr && isMissingColumnError(txErr)) {
+      const fallbackInsert = await supabase.from('wallet_transactions').insert({
+        user_id: userId,
+        type: 'deposit',
+        channel: 'fiat',
+        provider: PROVIDER,
+        amount,
+        currency: CURRENCY,
+        status: 'completed',
+        external_ref: externalRef,
+        meta: { kind: 'demo_faucet', day },
+      } as any);
+      txErr = fallbackInsert.error as any;
+    }
 
     if (txErr && (txErr as any).code !== '23505') {
       console.error('[DEMO-WALLET] faucet tx insert error', txErr);
