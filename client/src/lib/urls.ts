@@ -7,6 +7,11 @@ import { Capacitor } from '@capacitor/core';
 
 const CANONICAL_PROD_BASE = 'https://app.fanclubz.app';
 
+function isStagingLikeHost(hostname: string): boolean {
+  const h = String(hostname || '').toLowerCase();
+  return h.includes('staging') || h.endsWith('.vercel.app');
+}
+
 function isNativeApp(): boolean {
   return Boolean(Capacitor?.isNativePlatform?.());
 }
@@ -38,6 +43,8 @@ export function getPublicAppBaseUrl(): string {
     (import.meta.env.VITE_PUBLIC_APP_URL || import.meta.env.VITE_FRONTEND_URL) as string | undefined
   )?.trim() ?? '';
   const isProd = import.meta.env.PROD;
+  const currentOrigin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+  const currentHost = typeof window !== 'undefined' ? window.location?.hostname || '' : '';
 
   // Share links should always use the canonical web origin in native shells,
   // even during local dev, so users don't copy `http://localhost/...`.
@@ -45,12 +52,18 @@ export function getPublicAppBaseUrl(): string {
     return CANONICAL_PROD_BASE;
   }
 
+  // Staging/preview web surfaces must never leak users back to production
+  // just because VITE_FRONTEND_URL was configured to the prod app domain.
+  if (currentOrigin && isStagingLikeHost(currentHost)) {
+    return currentOrigin.replace(/\/+$/, '');
+  }
+
   if (envBase && !(isProd && isLocalhostOrigin(envBase))) {
     return envBase.replace(/\/+$/, '');
   }
 
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    const origin = window.location.origin;
+  if (currentOrigin) {
+    const origin = currentOrigin;
     if (!isProd || !isLocalhostOrigin(origin)) return origin;
   }
 

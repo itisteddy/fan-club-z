@@ -77,6 +77,7 @@ export function getEnvironmentConfig(): EnvironmentConfig {
   const protocol = window.location.protocol;
   const runningInNativeApp = typeof window !== 'undefined' && Boolean(Capacitor?.isNativePlatform?.());
   const productionApi = 'https://fan-club-z.onrender.com';
+  const stagingApi = 'https://fanclubz-backend-staging.onrender.com';
   
   if (DEBUG_ENABLED) {
     console.log('🌍 Environment Detection:');
@@ -139,8 +140,8 @@ export function getEnvironmentConfig(): EnvironmentConfig {
   // Development environment
   if (hostname === 'dev.fanclubz.app') {
     const config: EnvironmentConfig = {
-      apiUrl: 'https://fan-club-z.onrender.com',
-      socketUrl: 'https://fan-club-z.onrender.com',
+      apiUrl: stagingApi,
+      socketUrl: stagingApi,
       environment: 'staging',
       isDevelopment: false,
       isProduction: false
@@ -149,6 +150,20 @@ export function getEnvironmentConfig(): EnvironmentConfig {
     return config;
   }
   
+  // Staging/preview web surfaces should default to the staging backend when
+  // VITE_API_BASE_URL is absent or misconfigured.
+  if (hostname.includes('staging')) {
+    const config: EnvironmentConfig = {
+      apiUrl: stagingApi,
+      socketUrl: stagingApi,
+      environment: 'staging',
+      isDevelopment: false,
+      isProduction: false
+    };
+    if (DEBUG_ENABLED) console.log('🧪 Staging environment detected, using staging backend:', config);
+    return config;
+  }
+
   // Vercel deployments (default to production when VITE_API_BASE_URL is not set)
   if (hostname.includes('vercel.app')) {
     const config: EnvironmentConfig = {

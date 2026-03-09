@@ -1,6 +1,11 @@
 import { URL } from 'node:url';
 
-const API_BASE = 'https://fan-club-z.onrender.com';
+function apiBaseForHost(req: any): string {
+  const host = String((req?.headers?.['x-forwarded-host'] as string) || req?.headers?.host || '').toLowerCase();
+  return host.includes('staging')
+    ? 'https://fanclubz-backend-staging.onrender.com'
+    : 'https://fan-club-z.onrender.com';
+}
 
 function esc(s: string): string {
   return String(s ?? '')
@@ -91,6 +96,7 @@ async function computeOgImageUrl(origin: string, prediction: any): Promise<strin
 
 export default async function handler(req: any, res: any) {
   const origin = absoluteOrigin(req);
+  const apiBase = apiBaseForHost(req);
   const id = String((req.query.id as string) || '').trim();
   const slug = typeof req.query.slug === 'string' ? req.query.slug : undefined;
 
@@ -105,7 +111,7 @@ export default async function handler(req: any, res: any) {
 
   if (id) {
     try {
-      const r = await fetch(`${API_BASE}/api/v2/predictions/${encodeURIComponent(id)}`, {
+      const r = await fetch(`${apiBase}/api/v2/predictions/${encodeURIComponent(id)}`, {
         method: 'GET',
         headers: { 'User-Agent': 'fanclubz-og-bot' },
       });
