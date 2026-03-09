@@ -11,6 +11,9 @@
   "rewrites": [
     { "source": "/.well-known/apple-app-site-association", "destination": "/.well-known/apple-app-site-association" },
     { "source": "/.well-known/assetlinks.json", "destination": "/.well-known/assetlinks.json" },
+    { "source": "/api/share/prediction", "destination": "https://app.fanclubz.app/api/share/prediction" },
+    { "source": "/p/:id/:slug", "destination": "https://app.fanclubz.app/api/share/prediction?id=:id&slug=:slug" },
+    { "source": "/p/:id", "destination": "https://app.fanclubz.app/api/share/prediction?id=:id" },
     { "source": "/media/search", "destination": "/api/media-search" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]

@@ -52,7 +52,7 @@ function printResult(result) {
 
 async function probe(name, stageReq, prodReq, validate) {
   const [staging, prod] = await Promise.all([stageReq(), prodReq()]);
-  const out = validate(staging, prod);
+  const out = await validate(staging, prod);
   return { name, staging, prod, ...out };
 }
 
@@ -214,9 +214,60 @@ async function main() {
         return { pass: true };
       }
     ),
+    probe(
+      'Frontend runtime: wallet route serves app shell and JS chunk',
+      () => request(`${STAGING_WEB_ORIGIN}/wallet`, { method: 'GET', headers: { Accept: 'text/html' } }),
+      () => request(`${PROD_WEB_ORIGIN}/wallet`, { method: 'GET', headers: { Accept: 'text/html' } }),
+      async (s, p) => {
+        if (s.status !== 200 || p.status !== 200) {
+          return { pass: false, reason: 'Wallet route must return 200 on both frontends.' };
+        }
+        const stHasRoot = String(s.text || '').includes('id=\"root\"');
+        const prHasRoot = String(p.text || '').includes('id=\"root\"');
+        if (!stHasRoot || !prHasRoot) {
+          return { pass: false, reason: 'Wallet route did not return SPA shell on one environment.' };
+        }
+        const stAsset = (String(s.text || '').match(/\/assets\/[^"']+\.js/) || [])[0];
+        const prAsset = (String(p.text || '').match(/\/assets\/[^"']+\.js/) || [])[0];
+        if (!stAsset || !prAsset) {
+          return { pass: false, reason: 'Could not find bootstrap JS asset in one frontend HTML.' };
+        }
+        const [stAssetRes, prAssetRes] = await Promise.all([
+          request(`${STAGING_WEB_ORIGIN}${stAsset}`, { method: 'GET' }),
+          request(`${PROD_WEB_ORIGIN}${prAsset}`, { method: 'GET' }),
+        ]);
+        const stCt = String(stAssetRes.headers.get('content-type') || '').toLowerCase();
+        const prCt = String(prAssetRes.headers.get('content-type') || '').toLowerCase();
+        if (!stCt.includes('javascript') || !prCt.includes('javascript')) {
+          return { pass: false, reason: 'Bootstrap JS asset MIME type mismatch (expected javascript).' };
+        }
+        return { pass: true };
+      }
+    ),
+    probe(
+      'Share endpoint parity: /api/share/prediction is not SPA fallback',
+      () => request(`${STAGING_WEB_ORIGIN}/api/share/prediction?id=${DUMMY_UUID}`, { method: 'GET', headers: { Accept: 'text/html' } }),
+      () => request(`${PROD_WEB_ORIGIN}/api/share/prediction?id=${DUMMY_UUID}`, { method: 'GET', headers: { Accept: 'text/html' } }),
+      (s, p) => {
+        if (s.status !== 200 || p.status !== 200) {
+          return { pass: false, reason: 'Share endpoint expected 200 on both environments.' };
+        }
+        const stagingLooksLikeSpa = String(s.text || '').includes('id=\"root\"');
+        const prodLooksLikeSpa = String(p.text || '').includes('id=\"root\"');
+        if (stagingLooksLikeSpa !== prodLooksLikeSpa) {
+          return {
+            pass: false,
+            reason:
+              'Share endpoint behavior differs: one environment serves SPA shell while the other serves OG share HTML.',
+          };
+        }
+        return { pass: true };
+      }
+    ),
   ];
 
-  const results = await Promise.all(checks);
+  const results = [];
+  for (const c of checks) results.push(await c);
   for (const r of results) printResult(r);
 
   const failed = results.filter((r) => !r.pass);
