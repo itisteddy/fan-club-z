@@ -216,6 +216,8 @@ function checkETag(req: express.Request, res: express.Response, data: unknown): 
 
 const router = express.Router();
 
+const USER_ID_UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function isMissingColumnError(error: any): boolean {
   const code = String(error?.code || '');
   const msg = String(error?.message || '').toLowerCase();
@@ -1116,6 +1118,13 @@ router.get('/created/:userId', async (req, res) => {
   const { userId } = req.params;
   try {
     console.log(`📊 User created predictions endpoint called for ID: ${userId} - origin:`, req.headers.origin);
+    if (!USER_ID_UUID_REGEX.test(String(userId || ''))) {
+      return res.status(400).json({
+        error: 'Validation error',
+        message: 'Invalid userId format',
+        version: VERSION,
+      });
+    }
 
     // Auto-close any expired predictions for this creator before returning results
     const nowIso = new Date().toISOString();

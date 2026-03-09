@@ -5,12 +5,20 @@ import { VERSION } from '@fanclubz/shared';
 import { idempotency } from '../middleware/idempotency';
 
 const router = express.Router();
+const USER_ID_UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // GET /api/v2/prediction-entries/user/:userId - Get user's prediction entries
 router.get('/user/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     console.log(`📊 User prediction entries endpoint called for ID: ${userId} - origin:`, req.headers.origin);
+    if (!USER_ID_UUID_REGEX.test(String(userId || ''))) {
+      return res.status(400).json({
+        error: 'Validation error',
+        message: 'Invalid userId format',
+        version: VERSION,
+      });
+    }
 
     const { data: entries, error } = await supabase
       .from('prediction_entries')

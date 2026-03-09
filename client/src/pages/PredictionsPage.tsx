@@ -31,6 +31,7 @@ import { buildPredictionCardVM } from '@/lib/predictionCardVM';
 import { saveScrollPosition, restoreScrollPosition } from '../utils/scroll';
 
 type TabKey = 'Active' | 'Created' | 'Completed';
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Valid tabs for URL param validation
 const VALID_TABS: TabKey[] = ['Active', 'Created', 'Completed'];
@@ -54,11 +55,18 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
   } = usePredictionStore();
   const { user: storeUser, isAuthenticated: storeAuthenticated } = useAuthStore();
   const { user: sessionUser, initialized: sessionInitialized } = useAuthSession();
+  const effectiveUserId = useMemo(() => {
+    const sessionId = String(sessionUser?.id || '').trim();
+    if (UUID_REGEX.test(sessionId)) return sessionId;
+    const storeId = String((storeUser as any)?.id || '').trim();
+    if (UUID_REGEX.test(storeId)) return storeId;
+    return '';
+  }, [sessionUser?.id, storeUser]);
   
   // Use session as source of truth for authentication, fallback to store
   const isAuthenticated = sessionUser ? true : storeAuthenticated;
   const user = sessionUser ? {
-    id: sessionUser.id,
+    id: effectiveUserId || sessionUser.id,
     firstName: sessionUser.user_metadata?.firstName || sessionUser.user_metadata?.first_name || sessionUser.user_metadata?.full_name?.split(' ')[0] || 'User',
     lastName: sessionUser.user_metadata?.lastName || sessionUser.user_metadata?.last_name || sessionUser.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
     email: sessionUser.email || '',
@@ -189,14 +197,14 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
-      if (!user?.id || !isAuthenticated) return;
+      if (!sessionInitialized || !effectiveUserId || !isAuthenticated) return;
       try {
         setEntriesHydrated(false);
-        console.log('📊 BetsTab: Fetching data for user:', user.id);
+        console.log('📊 BetsTab: Fetching data for user:', effectiveUserId);
         await Promise.all([
-          fetchUserCreatedPredictions(user.id),
-          fetchUserPredictionEntries(user.id),
-          fetchCompletedPredictions(user.id)
+          fetchUserCreatedPredictions(effectiveUserId),
+          fetchUserPredictionEntries(effectiveUserId),
+          fetchCompletedPredictions(effectiveUserId)
         ]);
       } finally {
         if (!cancelled) {
@@ -208,14 +216,14 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
     return () => {
       cancelled = true;
     };
-  }, [user?.id, isAuthenticated, fetchUserCreatedPredictions, fetchUserPredictionEntries, fetchCompletedPredictions]);
+  }, [sessionInitialized, effectiveUserId, isAuthenticated, fetchUserCreatedPredictions, fetchUserPredictionEntries, fetchCompletedPredictions]);
 
   // Get counts for tabs (Completed count from API-backed list)
   const getCounts = () => {
-    if (!isAuthenticated || !user) return { active: 0, created: 0, completed: 0 };
+    if (!isAuthenticated || !effectiveUserId) return { active: 0, created: 0, completed: 0 };
     
-    const userCreated = getUserCreatedPredictions(user.id);
-    const userEntries = getUserPredictionEntries(user.id);
+    const userCreated = getUserCreatedPredictions(effectiveUserId);
+    const userEntries = getUserPredictionEntries(effectiveUserId);
     
     // Count active entries - only truly active/open predictions
     const activeEntries = userEntries.filter(entry => {
@@ -263,12 +271,12 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
 
   // Get user predictions data
   const getUserPredictions = (): Record<TabKey, (Prediction | null)[]> => {
-    if (!isAuthenticated || !user) {
+    if (!isAuthenticated || !effectiveUserId) {
       return { Active: [], Created: [], Completed: [] };
     }
 
-    const userEntries = getUserPredictionEntries(user.id);
-    const userCreated = getUserCreatedPredictions(user.id);
+    const userEntries = getUserPredictionEntries(effectiveUserId);
+    const userCreated = getUserCreatedPredictions(effectiveUserId);
     
     const activePredictions = userEntries
       .filter(entry => {
@@ -394,7 +402,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         entry_deadline: prediction.entry_deadline,
         options: prediction.options,
         vm,
-        isCreator: prediction.creator_id === user?.id,
+        isCreator: prediction.creator_id === effectiveUserId,
         awaitingSettlement,
       };
     });
@@ -414,12 +422,12 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
       console.error('Error getting user predictions:', error);
       return { Active: [], Created: [], Completed: [] };
     }
-  }, [user?.id, isAuthenticated, predictions, completedPredictions, activeTab]);
+  }, [effectiveUserId, isAuthenticated, predictions, completedPredictions, activeTab]);
 
-  const userEntriesList = (isAuthenticated && user) ? getUserPredictionEntries(user.id) : [];
+  const userEntriesList = (isAuthenticated && effectiveUserId) ? getUserPredictionEntries(effectiveUserId) : [];
 
   const activeEntryCards = useMemo(() => {
-    if (!isAuthenticated || !user) return [];
+    if (!isAuthenticated || !effectiveUserId) return [];
     return userEntriesList
       .filter(entry => {
         const prediction = (entry as any).prediction || predictions.find(p => p.id === entry.prediction_id);
@@ -458,7 +466,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
           }
         };
       });
-  }, [isAuthenticated, user, userEntriesList, predictions, isEntryActive]);
+  }, [isAuthenticated, effectiveUserId, userEntriesList, predictions, isEntryActive]);
 
   const currentPredictions = userPredictions[activeTab as TabKey] || [];
 
