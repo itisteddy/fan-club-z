@@ -31,7 +31,8 @@
     "perf:lighthouse": "npm --prefix client run perf:lighthouse",
     "db:migrate:staging": "APP_ENV=staging npm --prefix server run db:migrate-all",
     "staging-smoke-test": "tsx scripts/staging-smoke-test.ts",
-    "db:verify:staging": "tsx scripts/staging-smoke-test.ts"
+    "db:verify:staging": "tsx scripts/staging-smoke-test.ts",
+    "parity-check": "node scripts/parity-check.mjs"
   },
   "engines": {
     "node": ">=20.0.0"
