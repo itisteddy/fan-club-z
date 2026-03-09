@@ -455,7 +455,10 @@ router.get('/resolve/slug/:slug', async (req, res) => {
       if (!recentErr && Array.isArray(recentIds)) {
         const matches = recentIds.filter((p: any) => String(p?.id || '').startsWith(candidate));
         if (matches.length === 1) {
-          return res.json({ id: matches[0].id, version: VERSION });
+          const onlyMatch = matches[0];
+          if (onlyMatch?.id) {
+            return res.json({ id: onlyMatch.id, version: VERSION });
+          }
         }
       }
     }
