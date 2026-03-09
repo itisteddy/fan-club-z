@@ -25,6 +25,15 @@ function requestId(): string {
   return crypto.randomUUID?.() ?? `req_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+async function safeRecomputePrediction(predictionId: string, fallbackPrediction: any) {
+  try {
+    return await recomputePredictionState(predictionId);
+  } catch (recomputeError) {
+    console.warn('[FCZ-BET] recompute failed (non-fatal):', recomputeError);
+    return { prediction: fallbackPrediction };
+  }
+}
+
 /**
  * Map DB/Supabase errors to HTTP status + FCZ error code + user-facing message.
  * Returns { status, code, message } or null if unknown (caller uses 500).
@@ -287,7 +296,7 @@ async function handlePlaceBet(req: any, res: any) {
         .maybeSingle();
       if ((existingTx as any)?.entry_id) {
         const existingEntryId = (existingTx as any).entry_id as string;
-        const recomputed = await recomputePredictionState(predictionId);
+        const recomputed = await safeRecomputePrediction(predictionId, prediction);
         const { data: entryRow } = await supabase
           .from('prediction_entries')
           .select('*')
@@ -322,7 +331,7 @@ async function handlePlaceBet(req: any, res: any) {
             .order('created_at', { ascending: false })
             .maybeSingle();
           const entryId = (existingEntry as any)?.id as string | undefined;
-          const recomputed = await recomputePredictionState(predictionId);
+          const recomputed = await safeRecomputePrediction(predictionId, prediction);
           const { data: entryRow } = entryId
             ? await supabase.from('prediction_entries').select('*').eq('id', entryId).maybeSingle()
             : { data: null };
@@ -624,7 +633,7 @@ async function handlePlaceBet(req: any, res: any) {
         .maybeSingle();
       if ((existingTx as any)?.entry_id) {
         const existingEntryId = (existingTx as any).entry_id as string;
-        const recomputed = await recomputePredictionState(predictionId);
+        const recomputed = await safeRecomputePrediction(predictionId, prediction);
         const { data: entryRow } = await supabase
           .from('prediction_entries')
           .select('*')
@@ -676,7 +685,7 @@ async function handlePlaceBet(req: any, res: any) {
             .order('created_at', { ascending: false })
             .maybeSingle();
           const entryId = (existingEntry as any)?.id as string | undefined;
-          const recomputed = await recomputePredictionState(predictionId);
+          const recomputed = await safeRecomputePrediction(predictionId, prediction);
           const { data: entryRow } = entryId
             ? await supabase.from('prediction_entries').select('*').eq('id', entryId).maybeSingle()
             : { data: null };
@@ -821,7 +830,19 @@ async function handlePlaceBet(req: any, res: any) {
       });
     }
 
-    const walletSnapshot = await reconcileWallet({ userId, walletAddress: bodyWallet });
+    let walletSnapshot: any;
+    try {
+      walletSnapshot = await reconcileWallet({ userId, walletAddress: bodyWallet });
+    } catch (walletSyncError) {
+      console.error('[FCZ-BET] Wallet reconcile failed:', walletSyncError);
+      return res.status(503).json({
+        code: 'FCZ_SERVICE_UNAVAILABLE',
+        error: 'wallet_sync_unavailable',
+        message: 'Wallet sync is temporarily unavailable. Please try again shortly.',
+        requestId: reqId,
+        version: VERSION,
+      });
+    }
 
     const { data: existingEntry, error: existingEntryError } = await supabase
       .from('prediction_entries')
@@ -977,7 +998,7 @@ async function handlePlaceBet(req: any, res: any) {
           .single();
 
         if (existingEntry) {
-          const recomputed = await recomputePredictionState(predictionId);
+          const recomputed = await safeRecomputePrediction(predictionId, prediction);
           const { data: entryRow, error: entryFetchError } = await supabase
             .from('prediction_entries')
             .select('*')
@@ -1067,7 +1088,7 @@ async function handlePlaceBet(req: any, res: any) {
               .single();
 
             if (entry) {
-              const recomputed = await recomputePredictionState(predictionId);
+              const recomputed = await safeRecomputePrediction(predictionId, prediction);
               const { data: entryRow, error: entryFetchError } = await supabase
                 .from('prediction_entries')
                 .select('*')
