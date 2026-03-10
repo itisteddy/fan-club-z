@@ -149,14 +149,8 @@ export function getEnvironmentConfig(): EnvironmentConfig {
     if (DEBUG_ENABLED) console.log('🧪 Development environment detected (staging backend):', config);
     return config;
   }
-<<<<<<< HEAD
-  
-  // Staging/preview web surfaces should default to the staging backend when
-  // VITE_API_BASE_URL is absent or misconfigured.
-=======
 
   // Staging web surfaces (hostname contains 'staging', e.g. fanclubz-staging.vercel.app)
->>>>>>> b1faecf4 (fix(staging): parity - share routes, env detection, Paystack callback, parity-check script)
   if (hostname.includes('staging')) {
     const config: EnvironmentConfig = {
       apiUrl: stagingApi,
