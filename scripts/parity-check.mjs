@@ -88,6 +88,25 @@ const checks = [
     const any5xx = results.some((r) => r.status >= 500);
     return { ok: !any5xx, message: any5xx ? `5xx: ${results.map((r) => r.status).join(',')}` : 'OK' };
   }),
+  probe('Settlement merkle route exists (staging)', async () => {
+    // POST without auth: expect 401/403, NOT 404. 404 = route missing (deploy drift)
+    const r = await request(`${STAGING_API}/api/v2/settlement/manual/merkle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ predictionId: '00000000-0000-0000-0000-000000000000', winningOptionId: '00000000-0000-0000-0000-000000000001' }),
+    });
+    const ok = r.status !== 404;
+    return { ok, message: ok ? `OK (${r.status})` : `404 - route missing, redeploy Render staging` };
+  }),
+  probe('Settlement merkle route exists (prod)', async () => {
+    const r = await request(`${PROD_API}/api/v2/settlement/manual/merkle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ predictionId: '00000000-0000-0000-0000-000000000000', winningOptionId: '00000000-0000-0000-0000-000000000001' }),
+    });
+    const ok = r.status !== 404;
+    return { ok, message: ok ? `OK (${r.status})` : `404 - route missing` };
+  }),
 ];
 
 const results = [];

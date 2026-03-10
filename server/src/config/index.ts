@@ -210,23 +210,26 @@ export const config = {
   },
 } as const;
 
-/** Single source of truth for CORS allowlist: env CORS_ALLOWLIST/CORS_ORIGINS or default origins. Used by REST and Socket.IO. */
+const DEFAULT_CORS_ORIGINS = [
+  'https://fanclubz.app',
+  'https://app.fanclubz.app',
+  'https://web.fanclubz.app',
+  'https://auth.fanclubz.app',
+  'https://fanclubz-staging.vercel.app',
+  'capacitor://localhost',
+  'capacitor://app.fanclubz.app',
+  'ionic://localhost',
+  'http://localhost',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://localhost:5174',
+];
+
+/** Single source of truth for CORS allowlist. MERGES env CORS_ALLOWLIST/CORS_ORIGINS with defaults so staging origin is never dropped when env is misconfigured. */
 export function getCorsOrigins(): string[] {
-  if (config.security.corsOrigins.length > 0) return config.security.corsOrigins;
-  return [
-    'https://fanclubz.app',
-    'https://app.fanclubz.app',
-    'https://web.fanclubz.app',
-    'https://auth.fanclubz.app',
-    'https://fanclubz-staging.vercel.app',
-    'capacitor://localhost',
-    'capacitor://app.fanclubz.app',
-    'ionic://localhost',
-    'http://localhost',
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'http://localhost:5174',
-  ];
+  const fromEnv = config.security.corsOrigins;
+  if (fromEnv.length === 0) return DEFAULT_CORS_ORIGINS;
+  return [...new Set([...DEFAULT_CORS_ORIGINS, ...fromEnv])];
 }
 
 // Validate required environment variables
