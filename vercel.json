@@ -17,6 +17,7 @@
     { "source": "/.well-known/assetlinks.json", "destination": "/.well-known/assetlinks.json" },
     { "source": "/p/:id/:slug", "destination": "/api/share/prediction?id=:id&slug=:slug" },
     { "source": "/p/:id", "destination": "/api/share/prediction?id=:id" },
+    { "source": "/media/search", "destination": "/api/media-search" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

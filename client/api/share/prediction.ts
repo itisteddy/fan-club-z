@@ -2,7 +2,7 @@
  * Share/prediction OG handler - copy for client-root Vercel deploys (staging).
  * Keep in sync with root api/share/prediction.ts.
  */
-import { URL } from 'node:url';
+import { URL } from 'url';
 
 function apiBaseForHost(req: any): string {
   const host = String((req?.headers?.['x-forwarded-host'] || req?.headers?.host || '')).toLowerCase();

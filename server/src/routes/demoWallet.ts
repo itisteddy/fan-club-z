@@ -94,8 +94,6 @@ demoWallet.post('/faucet', async (req, res) => {
     // Idempotent: 1 faucet/day per user (provider, external_ref unique)
     const { error: txErr } = await supabase.from('wallet_transactions').insert({
       user_id: userId,
-      direction: 'credit',
-      // Use 'deposit' to satisfy older wallet_transactions_type_check variants in existing DBs
       type: 'deposit',
       channel: 'fiat',
       provider: PROVIDER,
