@@ -486,16 +486,35 @@ async function handlePlaceBet(req: any, res: any) {
           estPayout: quoteUsed?.after?.estPayout,
         });
         if (updateErr || !updatedEntry?.id) {
-          console.error('[FCZ-BET] demo entry top-up failed', { requestId: reqId, error: updateErr });
-          return res.status(500).json({
-            code: 'FCZ_DATABASE_ERROR',
-            error: 'entry_update_failed',
-            message: 'Failed to increase stake',
-            requestId: reqId,
-            version: VERSION,
-          });
+          console.warn('[FCZ-BET] demo entry top-up fallback to new entry', { requestId: reqId, error: updateErr });
+          const { data: createdEntry, error: entryErr } = await supabase
+            .from('prediction_entries')
+            .insert({
+              prediction_id: predictionId,
+              option_id: optionId,
+              user_id: userId,
+              amount: amountUSD,
+              status: 'active',
+              potential_payout: quoteUsed?.after?.estPayout ?? amountUSD,
+              escrow_lock_id: lockId,
+              provider: PROVIDER,
+            } as any)
+            .select('*')
+            .single();
+          if (entryErr || !createdEntry?.id) {
+            console.error('[FCZ-BET] demo entry create-after-topup failed', { requestId: reqId, error: entryErr });
+            return res.status(500).json({
+              code: 'FCZ_DATABASE_ERROR',
+              error: 'entry_update_failed',
+              message: 'Failed to increase stake',
+              requestId: reqId,
+              version: VERSION,
+            });
+          }
+          entry = createdEntry;
+        } else {
+          entry = updatedEntry;
         }
-        entry = updatedEntry;
       } else {
         const { data: createdEntry, error: entryErr } = await supabase
           .from('prediction_entries')
@@ -1177,33 +1196,43 @@ async function handlePlaceBet(req: any, res: any) {
       });
 
       if (updateError) {
-        console.error('[FCZ-BET] Error updating existing entry:', updateError);
-        await supabase
-          .from('escrow_locks')
-          .update({ state: 'released', status: 'released', released_at: new Date().toISOString() })
-          .eq('id', lockId);
-
-        return res.status(500).json({
-          error: 'entry_update_failed',
-          message: 'Failed to increase your stake on this option',
-          version: VERSION
-        });
+        console.warn('[FCZ-BET] crypto entry top-up fallback to new entry:', updateError);
       }
 
       if (!updatedEntry?.id) {
-        await supabase
-          .from('escrow_locks')
-          .update({ state: 'released', status: 'released', released_at: new Date().toISOString() })
-          .eq('id', lockId);
-        return res.status(500).json({
-          code: 'FCZ_DATABASE_ERROR',
-          error: 'entry_update_failed',
-          message: 'Failed to increase your stake on this option',
-          requestId: reqId,
-          version: VERSION,
-        });
+        const { data: entry, error: entryError } = await supabase
+          .from('prediction_entries')
+          .insert({
+            prediction_id: predictionId,
+            option_id: optionId,
+            user_id: userId,
+            amount: amountUSD,
+            status: 'active',
+            potential_payout: quoteUsed?.after?.estPayout ?? amountUSD,
+            escrow_lock_id: lockId,
+            provider: 'crypto-base-usdc'
+          })
+          .select()
+          .single();
+
+        if (entryError || !entry?.id) {
+          await supabase
+            .from('escrow_locks')
+            .update({ state: 'released', status: 'released', released_at: new Date().toISOString() })
+            .eq('id', lockId);
+          return res.status(500).json({
+            code: 'FCZ_DATABASE_ERROR',
+            error: 'entry_update_failed',
+            message: 'Failed to increase your stake on this option',
+            requestId: reqId,
+            version: VERSION,
+          });
+        }
+        entryId = entry.id;
+        totalEntryAmount = amountUSD;
+      } else {
+        entryId = updatedEntry.id;
       }
-      entryId = updatedEntry.id;
     } else {
       const { data: entry, error: entryError } = await supabase
         .from('prediction_entries')
