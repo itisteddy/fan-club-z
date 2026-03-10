@@ -21,11 +21,12 @@ function cors(res: VercelRes, origin?: string) {
 }
 
 export default async function handler(req: VercelReq, res: VercelRes) {
-  cors(res, req.headers?.origin as string);
-  if (req.method === 'OPTIONS') return res.status(200).end();
+  cors(res, req?.headers?.origin);
+  if (req?.method === 'OPTIONS') return res.status(200).end();
 
-  const q = (req.query?.q as string || '').trim();
-  const per = Math.min(1, Number(req.query?.per) || 1);
+  const query = req?.query ?? {};
+  const q = (String(query.q ?? '')).trim();
+  const per = Math.min(1, Number(query.per) || 1);
   if (!q) return res.status(400).json({ error: 'Missing q' });
 
   const cacheKey = `${q}:${per}`;
