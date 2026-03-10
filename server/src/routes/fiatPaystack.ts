@@ -34,7 +34,10 @@ function getPaystackSecretKey(): string | null {
 }
 
 function getPaystackCallbackUrl(): string {
-  return process.env.PAYSTACK_CALLBACK_URL || 'https://app.fanclubz.app/wallet?deposit=return';
+  if (process.env.PAYSTACK_CALLBACK_URL?.trim()) return process.env.PAYSTACK_CALLBACK_URL.trim();
+  const frontendUrl = process.env.FRONTEND_URL || process.env.CLIENT_URL || process.env.VITE_APP_URL;
+  if (frontendUrl?.trim()) return `${frontendUrl.replace(/\/+$/, '')}/wallet?deposit=return`;
+  return 'https://app.fanclubz.app/wallet?deposit=return';
 }
 
 // Paystack API helper

@@ -78,7 +78,7 @@ export function getEnvironmentConfig(): EnvironmentConfig {
   const runningInNativeApp = typeof window !== 'undefined' && Boolean(Capacitor?.isNativePlatform?.());
   const productionApi = 'https://fan-club-z.onrender.com';
   const stagingApi = 'https://fanclubz-backend-staging.onrender.com';
-  
+
   if (DEBUG_ENABLED) {
     console.log('🌍 Environment Detection:');
     console.log('  - Hostname:', hostname);
@@ -137,7 +137,7 @@ export function getEnvironmentConfig(): EnvironmentConfig {
     return config;
   }
   
-  // Development environment
+  // Development environment (dev.fanclubz.app → staging backend)
   if (hostname === 'dev.fanclubz.app') {
     const config: EnvironmentConfig = {
       apiUrl: stagingApi,
@@ -146,12 +146,17 @@ export function getEnvironmentConfig(): EnvironmentConfig {
       isDevelopment: false,
       isProduction: false
     };
-    if (DEBUG_ENABLED) console.log('🧪 Development environment detected (single service):', config);
+    if (DEBUG_ENABLED) console.log('🧪 Development environment detected (staging backend):', config);
     return config;
   }
+<<<<<<< HEAD
   
   // Staging/preview web surfaces should default to the staging backend when
   // VITE_API_BASE_URL is absent or misconfigured.
+=======
+
+  // Staging web surfaces (hostname contains 'staging', e.g. fanclubz-staging.vercel.app)
+>>>>>>> b1faecf4 (fix(staging): parity - share routes, env detection, Paystack callback, parity-check script)
   if (hostname.includes('staging')) {
     const config: EnvironmentConfig = {
       apiUrl: stagingApi,
@@ -164,7 +169,7 @@ export function getEnvironmentConfig(): EnvironmentConfig {
     return config;
   }
 
-  // Vercel deployments (default to production when VITE_API_BASE_URL is not set)
+  // Vercel deployments (generic *.vercel.app without 'staging' → production)
   if (hostname.includes('vercel.app')) {
     const config: EnvironmentConfig = {
       apiUrl: productionApi,
@@ -173,7 +178,7 @@ export function getEnvironmentConfig(): EnvironmentConfig {
       isDevelopment: false,
       isProduction: true
     };
-    if (DEBUG_ENABLED) console.log('🚀 Vercel deployment detected, using single service:', config);
+    if (DEBUG_ENABLED) console.log('🚀 Vercel deployment detected, using production:', config);
     return config;
   }
 

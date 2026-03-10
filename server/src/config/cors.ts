@@ -1,22 +1,19 @@
 import type cors from 'cors';
 
+/** Keep in sync with getCorsOrigins() in config/index.ts for tests. */
 export const ALLOWED_ORIGINS = [
-  // Landing site (marketing)
   'https://fanclubz.app',
-  // App surfaces (main app + admin)
   'https://app.fanclubz.app',
   'https://web.fanclubz.app',
-  // Auth domain (Supabase hosted auth) may be used during OAuth flows
   'https://auth.fanclubz.app',
-  // Capacitor native shells (iOS/Android WebView origins)
+  'https://fanclubz-staging.vercel.app',
   'capacitor://localhost',
   'capacitor://app.fanclubz.app',
   'ionic://localhost',
-  // Local development origins
   'http://localhost',
+  'http://localhost:3000',
   'http://localhost:5173',
   'http://localhost:5174',
-  'http://localhost:3000',
 ];
 
 export function isAllowedCorsOrigin(origin?: string | null): boolean {

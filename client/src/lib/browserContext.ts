@@ -226,11 +226,15 @@ export function resetBrowserContextCache() {
 /**
  * Build a URL that opens the current page in the system browser.
  * Used by the OAuth gate to let users escape in-app browsers.
+ * Uses VITE_FRONTEND_URL when available; otherwise current origin for staging-like hosts.
  */
 export function getOpenInSystemBrowserUrl(path?: string): string {
   const targetPath = path || (typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/');
-  const baseUrl = import.meta.env.VITE_APP_URL || 'https://app.fanclubz.app';
-  const fullUrl = `${baseUrl}${targetPath}`;
+  const envUrl = (import.meta.env.VITE_FRONTEND_URL || import.meta.env.VITE_APP_URL) as string | undefined;
+  const baseUrl =
+    envUrl?.trim() ||
+    (typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://app.fanclubz.app');
+  const fullUrl = `${baseUrl.replace(/\/+$/, '')}${targetPath.startsWith('/') ? targetPath : '/' + targetPath}`;
   const ctx = getBrowserContext();
 
   if (ctx.os === 'android') {
@@ -249,9 +253,12 @@ export function getOpenInSystemBrowserUrl(path?: string): string {
  * Copy a URL to clipboard. Returns true on success.
  */
 export async function copyLinkToClipboard(path?: string): Promise<boolean> {
-  const baseUrl = import.meta.env.VITE_APP_URL || 'https://app.fanclubz.app';
+  const envUrl = (import.meta.env.VITE_FRONTEND_URL || import.meta.env.VITE_APP_URL) as string | undefined;
+  const baseUrl =
+    envUrl?.trim() ||
+    (typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://app.fanclubz.app');
   const targetPath = path || (typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/');
-  const fullUrl = `${baseUrl}${targetPath}`;
+  const fullUrl = `${baseUrl.replace(/\/+$/, '')}${targetPath.startsWith('/') ? targetPath : '/' + targetPath}`;
   try {
     await navigator.clipboard.writeText(fullUrl);
     return true;

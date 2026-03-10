@@ -1,3 +1,7 @@
+/**
+ * Share/prediction OG handler - copy for client-root Vercel deploys (staging).
+ * Keep in sync with root api/share/prediction.ts.
+ */
 import { URL } from 'node:url';
 
 function apiBaseForHost(req: any): string {
@@ -46,7 +50,6 @@ function deriveOgCandidateUrl(coverUrl: string): string {
     const parts = u.pathname.split('/');
     if (parts.length >= 2) {
       const last = parts[parts.length - 1] || '';
-      // Our storage pipeline uploads: {predictionId}/cover.(webp|jpg) and {predictionId}/og.jpg
       if (/^cover\./i.test(last)) {
         parts[parts.length - 1] = 'og.jpg';
         u.pathname = parts.join('/');
@@ -74,10 +77,6 @@ async function headOk(url: string): Promise<boolean> {
   }
 }
 
-// OG image priority:
-// 1) OG-friendly crop (og.jpg) if it exists
-// 2) Uploaded cover URL
-// 3) Generic fallback
 async function computeOgImageUrl(origin: string, prediction: any): Promise<string> {
   const generic = `${origin}/og-generic.svg`;
   const imageUrl =
@@ -103,7 +102,6 @@ export default async function handler(req: any, res: any) {
   const shareUrl = id ? buildShareUrl(origin, id, slug) : `${origin}/`;
   const spaUrl = id ? buildSpaUrl(origin, id) : `${origin}/discover`;
 
-  // Defaults: privacy-safe
   let title = 'Fan Club Z';
   let description = 'Open to view this prediction on Fan Club Z.';
   let ogImage = `${origin}/og-generic.svg`;
@@ -127,7 +125,6 @@ export default async function handler(req: any, res: any) {
           title = String(p.title || p.question || 'Prediction').trim() || 'Prediction';
           description = String(p.description || '').trim() || 'Open to view details and participate.';
           ogImage = await computeOgImageUrl(origin, p);
-          // Cache-bust so caches refresh when creator updates cover (updated_at changes).
           const v = p.updated_at ? String(p.updated_at) : '';
           if (v && ogImage.startsWith('http')) {
             try {
@@ -183,4 +180,3 @@ export default async function handler(req: any, res: any) {
   </body>
 </html>`);
 }
-
