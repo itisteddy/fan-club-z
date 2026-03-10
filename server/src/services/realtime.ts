@@ -1,29 +1,14 @@
 import type { Server as HttpServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
+import { getCorsOrigins } from '../config';
 
 let io: SocketIOServer | null = null;
 
 export function initRealtime(server: HttpServer) {
   if (io) return io;
-  
-  // Match exact CORS origins from server/src/index.ts
-  // Phase 1: Socket.IO must use the same origin allowlist as REST API
-  const allowedOrigins = [
-    'https://fanclubz.app',
-    'https://app.fanclubz.app',
-    // Admin portal
-    'https://web.fanclubz.app',
-    'https://auth.fanclubz.app',
-    // Capacitor native shells (iOS/Android WebView origins)
-    // These must be allowed for native app Socket.IO connections to work
-    'capacitor://localhost',
-    'capacitor://app.fanclubz.app',
-    'ionic://localhost',
-    'http://localhost',
-    'http://localhost:5173',
-    'http://localhost:5174', // Vite default dev port
-    'http://localhost:3000',
-  ];
+
+  // Same allowlist as REST API (env CORS_ALLOWLIST / CORS_ORIGINS or getCorsOrigins() defaults)
+  const allowedOrigins = getCorsOrigins();
   const warnedBlockedOrigins = new Set<string>();
   
   io = new SocketIOServer(server, {

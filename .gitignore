@@ -32,6 +32,8 @@ node_modules/.vite/
 !.env.example
 !.env.staging.example
 !.env.production.example
+!client/.env.staging.example
+!client/.env.production.example
 
 # Logs
 *.log

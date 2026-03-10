@@ -27,7 +27,7 @@ import cors from 'cors';
 import compression from 'compression';
 import helmet from 'helmet';
 import path from 'path';
-import { config } from './config';
+import { config, getCorsOrigins } from './config';
 import { supabase } from './config/database';
 import { db } from './config/database';
 import { VERSION } from '@fanclubz/shared';
@@ -66,25 +66,8 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false, // Required for some wallet integrations
 }));
 
-// CORS configuration: Single source of truth for all CORS logic
-// Use CORS_ALLOWLIST when set; otherwise fallback to sensible defaults
-const defaultOrigins = [
-  'https://fanclubz.app',
-  'https://app.fanclubz.app',
-  'https://web.fanclubz.app',
-  'https://auth.fanclubz.app',
-  'https://fanclubz-staging.vercel.app',
-  'capacitor://localhost',
-  'capacitor://app.fanclubz.app',
-  'ionic://localhost',
-  'http://localhost',
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'http://localhost:5174',
-];
-const allowedOrigins = config.security.corsOrigins.length > 0
-  ? config.security.corsOrigins
-  : defaultOrigins;
+// CORS configuration: env CORS_ALLOWLIST/CORS_ORIGINS or getCorsOrigins() defaults
+const allowedOrigins = getCorsOrigins();
 
 // Avoid turning "origin not allowed" into a 500 again.
 // We log blocked origins (deduped) and simply omit CORS headers for them.

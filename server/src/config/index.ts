@@ -167,7 +167,7 @@ export const config = {
   security: {
     bcryptRounds: parseInt(process.env.BCRYPT_ROUNDS || '12', 10),
     sessionSecret: process.env.SESSION_SECRET || 'your-session-secret-for-production',
-    corsOrigins: process.env.CORS_ALLOWLIST?.split(',').map(s => s.trim()).filter(Boolean) || process.env.CORS_ORIGINS?.split(',') || [],
+    corsOrigins: process.env.CORS_ALLOWLIST?.split(',').map(s => s.trim()).filter(Boolean) || (process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map(s => s.trim()).filter(Boolean) : []),
     trustProxy: process.env.TRUST_PROXY === 'true',
   },
   
@@ -209,6 +209,25 @@ export const config = {
     disputeWindowHours: parseInt(process.env.SETTLEMENT_DISPUTE_WINDOW_HOURS || '24', 10),
   },
 } as const;
+
+/** Single source of truth for CORS allowlist: env CORS_ALLOWLIST/CORS_ORIGINS or default origins. Used by REST and Socket.IO. */
+export function getCorsOrigins(): string[] {
+  if (config.security.corsOrigins.length > 0) return config.security.corsOrigins;
+  return [
+    'https://fanclubz.app',
+    'https://app.fanclubz.app',
+    'https://web.fanclubz.app',
+    'https://auth.fanclubz.app',
+    'https://fanclubz-staging.vercel.app',
+    'capacitor://localhost',
+    'capacitor://app.fanclubz.app',
+    'ionic://localhost',
+    'http://localhost',
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:5174',
+  ];
+}
 
 // Validate required environment variables
 const requiredEnvVars = [
