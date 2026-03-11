@@ -71,10 +71,13 @@ async function run() {
     console.log(`✅ gitSha match: ${prodSha?.slice(0, 7)}`);
   }
 
-  // 3) DB connectivity
+  // 3) DB connectivity (404 = endpoint not deployed yet, warn not fail)
+  const prodDeep404 = prodDeep.status === 404;
   const prodDbOk = prodDeep.body?.db?.ok;
   const stagingDbOk = stagingDeep.body?.db?.ok;
-  if (!prodDbOk) {
+  if (prodDeep404) {
+    warns.push('Prod /health/deep not available (404) - deploy parity tooling to prod');
+  } else if (!prodDbOk) {
     fails.push(`Prod DB: ${prodDeep.body?.db?.error || 'not ok'}`);
   } else {
     console.log('✅ Prod DB connectivity OK');
@@ -96,15 +99,16 @@ async function run() {
     console.log('✅ Staging required tables OK');
   }
 
-  // 5) CORS allowlist mismatch (WARN)
+  // 5) CORS allowlist mismatch (WARN, skip if prod doesn't have /debug/config yet)
+  const prodConfig404 = prodConfig.status === 404;
   const prodCorsCount = prodConfig.body?.corsAllowlistCount ?? 0;
   const stagingCorsCount = stagingConfig.body?.corsAllowlistCount ?? 0;
-  if (prodCorsCount !== stagingCorsCount) {
+  if (!prodConfig404 && prodCorsCount !== stagingCorsCount) {
     warns.push(`CORS allowlist count: prod=${prodCorsCount} staging=${stagingCorsCount}`);
   }
   const prodCorsSample = JSON.stringify(prodConfig.body?.corsAllowlistSample || []);
   const stagingCorsSample = JSON.stringify(stagingConfig.body?.corsAllowlistSample || []);
-  if (prodCorsSample !== stagingCorsSample) {
+  if (!prodConfig404 && prodCorsSample !== stagingCorsSample) {
     warns.push(`CORS sample differs: prod=${prodCorsSample} staging=${stagingCorsSample}`);
   }
 
