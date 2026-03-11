@@ -34,8 +34,8 @@
     "parity-check": "node scripts/parity-check.mjs",
     "db:port-prod-to-staging": "node scripts/db-port-prod-to-staging.mjs",
     "db:add-user-to-staging": "node scripts/db-add-user-to-staging.mjs",
-    "staging-smoke-test": "tsx scripts/staging-smoke-test.ts",
-    "db:verify:staging": "tsx scripts/staging-smoke-test.ts"
+    "staging-smoke-test": "bash scripts/staging-smoke-test.sh",
+    "db:verify:staging": "bash scripts/staging-smoke-test.sh"
   },
   "engines": {
     "node": ">=20.0.0"

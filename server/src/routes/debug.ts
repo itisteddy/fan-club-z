@@ -21,11 +21,13 @@ function hostOnly(url: string | undefined): string {
 /** GET /debug/config - Read-only, sanitized config. No secrets. */
 const debugRouter = Router();
 
-debugRouter.get('/debug/config', (_req: Request, res: Response) => {
+debugRouter.get('/debug/config', (req: Request, res: Response) => {
   const origins = getCorsOrigins();
+  const apiHost = hostOnly(config.api?.url) || (req.get('host') || '').split(':')[0] || '(unknown)';
   res.json({
     env: config.server.appEnv || config.server.nodeEnv || 'production',
     gitSha: GIT_SHA,
+    apiHost,
     dbHost: hostOnly(process.env.DATABASE_URL) || hostOnly(config.supabase?.url),
     dbName: (() => {
       const u = process.env.DATABASE_URL;

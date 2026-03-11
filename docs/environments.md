@@ -52,3 +52,5 @@ Prod vs staging URLs and variable names.
 - **staging** → Staging (Vercel staging, Render staging)
 
 Configure Vercel and Render so staging deploys from `staging` branch and production from `main`.
+
+**Deployment targeting:** See `docs/deployment_targeting.md` for exact Render/Vercel branch settings and what to change if staging deploys from main.

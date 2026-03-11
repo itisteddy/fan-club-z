@@ -119,6 +119,22 @@ async function run() {
     warns.push('Supabase host same for prod and staging (expected different projects)');
   }
 
+  // 7) Debug config host summaries (when both have it)
+  if (!prodConfig404 && stagingConfig.body) {
+    const p = prodConfig.body;
+    const s = stagingConfig.body;
+    console.log('\n--- Config diff (prod vs staging) ---');
+    console.log('  gitSha:        ', (p.gitSha || '?').slice(0, 7), 'vs', (s.gitSha || '?').slice(0, 7));
+    console.log('  dbHost:        ', p.dbHost || '?', 'vs', s.dbHost || '?');
+    console.log('  supabaseHost:  ', p.supabaseUrlHost || '?', 'vs', s.supabaseUrlHost || '?');
+    console.log('  apiHost:       ', p.apiHost || '?', 'vs', s.apiHost || '?');
+    console.log('  corsCount:     ', p.corsAllowlistCount ?? '?', 'vs', s.corsAllowlistCount ?? '?');
+  } else if (stagingConfig.body) {
+    console.log('\n--- Staging config (prod has no /debug/config) ---');
+    const s = stagingConfig.body;
+    console.log('  gitSha:', (s.gitSha || '?').slice(0, 7), '| dbHost:', s.dbHost || '?', '| supabaseHost:', s.supabaseUrlHost || '?', '| corsCount:', s.corsAllowlistCount ?? '?');
+  }
+
   // Summary
   console.log('\n--- Summary ---');
   if (warns.length) {

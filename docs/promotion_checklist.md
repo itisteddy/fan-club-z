@@ -2,6 +2,18 @@
 
 Use this before merging `staging` into `main`. Ensures production is not broken by the promotion.
 
+**Parity gate:** Both gates must pass before merge. See `docs/promotion_gate.md`.
+
+---
+
+## 0. Parity gate (required)
+
+- [ ] **Parity check passes**  
+  `pnpm run parity-check` → exit 0. Compares gitSha, /health/deep, /debug/config.
+
+- [ ] **Staging smoke tests pass**  
+  `pnpm run staging-smoke-test` → exit 0.
+
 ---
 
 ## 1. Staging health and smoke test
