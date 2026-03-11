@@ -49,9 +49,11 @@ After code changes to parity tooling or staging fixes:
 
 ## Documented Deployments
 
-| Date | Backend staging | Frontend staging | Outputs |
-|------|-----------------|-----------------|---------|
-| 2026-03-11 | https://fanclubz-backend-staging.onrender.com | https://fanclubz-staging.vercel.app | See below |
+| Date | Backend staging | Frontend staging | Commit | Outputs |
+|------|-----------------|-----------------|--------|---------|
+| 2026-03-11 | https://fanclubz-backend-staging.onrender.com | https://fanclubz-staging.vercel.app | 8003239c | See below |
+
+**Redeploy (staging only):** Push to `staging` branch triggers Render + Vercel staging. No prod changes.
 
 ### /health (2026-03-11)
 
