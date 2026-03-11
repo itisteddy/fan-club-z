@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { config, getCorsOrigins } from '../config';
-import { supabase } from '../config/database';
+import { supabase, supabaseAnon } from '../config/database';
 import { VERSION } from '@fanclubz/shared';
 
 const GIT_SHA =
@@ -77,6 +77,62 @@ healthRouter.get('/health/deep', async (req: Request, res: Response) => {
     checks,
     time: new Date().toISOString(),
   });
+});
+
+/** GET /health/auth - Diagnostic: validate Bearer token (Supabase). Returns ok + reason only. No secrets. */
+healthRouter.get('/health/auth', async (req: Request, res: Response) => {
+  const authHeader = String(req.headers.authorization || '');
+  if (!authHeader.startsWith('Bearer ')) {
+    return res.status(200).json({
+      ok: false,
+      reason: 'no_token',
+      env: config.server.appEnv || config.server.nodeEnv || 'production',
+      time: new Date().toISOString(),
+    });
+  }
+  const token = authHeader.slice('Bearer '.length).trim();
+  if (!token) {
+    return res.status(200).json({
+      ok: false,
+      reason: 'empty_token',
+      env: config.server.appEnv || config.server.nodeEnv || 'production',
+      time: new Date().toISOString(),
+    });
+  }
+  try {
+    const { data, error } = await supabaseAnon.auth.getUser(token);
+    if (error) {
+      const code = String((error as any)?.code || error?.message || 'invalid').slice(0, 64);
+      return res.status(200).json({
+        ok: false,
+        reason: code,
+        env: config.server.appEnv || config.server.nodeEnv || 'production',
+        time: new Date().toISOString(),
+      });
+    }
+    if (!data?.user) {
+      return res.status(200).json({
+        ok: false,
+        reason: 'no_user',
+        env: config.server.appEnv || config.server.nodeEnv || 'production',
+        time: new Date().toISOString(),
+      });
+    }
+    return res.status(200).json({
+      ok: true,
+      reason: 'valid',
+      env: config.server.appEnv || config.server.nodeEnv || 'production',
+      time: new Date().toISOString(),
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return res.status(200).json({
+      ok: false,
+      reason: msg.slice(0, 64),
+      env: config.server.appEnv || config.server.nodeEnv || 'production',
+      time: new Date().toISOString(),
+    });
+  }
 });
 
 export default healthRouter;

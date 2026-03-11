@@ -17,6 +17,8 @@
 2. **Build & Deploy** → **Branch**: set to `staging`
 3. Save. Trigger **Manual Deploy** if needed.
 
+**Staging env (Render):** Set at least: `APP_ENV=staging`, `API_URL=https://fanclubz-backend-staging.onrender.com`, `VITE_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (and anon key if used) to **staging** Supabase. Add `https://fanclubz-staging.vercel.app` to `CORS_ALLOWLIST` if not in defaults.
+
 ### Vercel
 
 | Project/Env | Branch | URL |
@@ -32,6 +34,8 @@
    - Create a **Preview** deployment for `staging` branch and assign a custom domain (e.g. fanclubz-staging.vercel.app), or
    - Create a separate Vercel project that deploys from `staging`
 4. Ensure staging project/env uses `staging` branch.
+
+**Staging env (Vercel):** Set **Preview** (or staging project) env: `VITE_APP_ENV=staging`, `VITE_API_URL=https://fanclubz-backend-staging.onrender.com` (or `VITE_API_BASE_URL`), `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to **staging** Supabase.
 
 ## Redeploy Staging (Not Prod)
 

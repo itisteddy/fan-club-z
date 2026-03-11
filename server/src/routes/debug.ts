@@ -23,7 +23,8 @@ const debugRouter = Router();
 
 debugRouter.get('/debug/config', (req: Request, res: Response) => {
   const origins = getCorsOrigins();
-  const apiHost = hostOnly(config.api?.url) || (req.get('host') || '').split(':')[0] || '(unknown)';
+  // Prefer Host header so staging reports its own URL even when API_URL env is unset or points to prod
+  const apiHost = (req.get('host') || '').split(':')[0] || hostOnly(config.api?.url) || '(unknown)';
   res.json({
     env: config.server.appEnv || config.server.nodeEnv || 'production',
     gitSha: GIT_SHA,
