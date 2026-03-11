@@ -61,4 +61,5 @@ node scripts/parity-check.mjs
 ## 4. Warnings
 
 - **CORS allowlist count/sample differs**: Often expected (staging has different origins). Check if staging frontend can reach backend.
+- **Socket origin**: Socket.IO uses the same CORS allowlist as HTTP (`getCorsOrigins()`). CORS mismatch implies socket origin mismatch.
 - **Supabase host same**: Prod and staging should use different Supabase projects. If same, create a staging project.

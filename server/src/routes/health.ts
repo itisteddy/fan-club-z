@@ -18,6 +18,9 @@ const REQUIRED_TABLES = [
   'prediction_entries',
   'comments',
   'categories',
+  'bet_settlements',
+  'user_awards_current',
+  'badge_definitions',
 ] as const;
 
 const healthRouter = Router();

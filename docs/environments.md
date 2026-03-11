@@ -4,7 +4,7 @@ Prod vs staging URLs and variable names.
 
 ## Branch Setup (Phase 0)
 
-To keep staging changes from touching prod:
+**Critical: Staging must not touch prod.** Do not merge staging to main until parity is achieved and you explicitly promote.
 
 1. **Create staging branch** from current prod `main` (if not exists):
    ```bash
@@ -13,9 +13,9 @@ To keep staging changes from touching prod:
 
 2. **Vercel**: Set staging project/preview to deploy from `staging` branch. Production from `main`.
 
-3. **Render**: Create separate staging service (or use same service with branch override). Set staging service to deploy from `staging` branch. Production from `main`.
+3. **Render**: Create separate staging service. Set staging service to deploy from `staging` branch. Production from `main`.
 
-4. **Result**: Production stays on `main`. Staging on `staging`. Fix staging without risking prod.
+4. **Result**: Production stays on `main`. Staging on `staging`. Fix staging without risking prod. Merge to main only when ready to promote.
 
 ## URLs
 
