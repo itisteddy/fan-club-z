@@ -1,81 +1,57 @@
-# Staging Render Backend Setup
+# Staging Render Setup
 
-## Prerequisites
+Configure Render backend for staging deployment.
 
-- Render account
-- Production backend service already deployed
-- Staging Supabase project created (see `staging_setup_supabase.md`)
+## 1. Branch
 
----
+- **Production**: Deploy from `main`
+- **Staging**: Deploy from `staging`
 
-## 1. Create Staging Service
+In Render → Service → Settings → Build & Deploy:
 
-1. Go to [Render Dashboard](https://dashboard.render.com).
-2. **New → Background Worker** or **Web Service** (same type as prod).
-3. Connect same Git repo; use a branch like `staging` or `develop`, or same `main` with different env vars.
-4. Name: `fanclubz-backend-staging`.
-5. Region: Same as staging Supabase for low latency.
+- **Branch**: `staging` (for staging service)
+- **Branch**: `main` (for production service)
 
----
+## 2. Environment Variables
 
-## 2. Build & Start Commands (server only — avoid building client)
+Set in Render → Environment:
 
-So the staging backend only builds the server (faster, no client dependency issues):
+| Variable              | Required | Example |
+|-----------------------|----------|---------|
+| `APP_ENV`             | Yes      | `staging` |
+| `NODE_ENV`            | Yes      | `production` |
+| `CORS_ALLOWLIST`      | Yes      | `https://fanclubz-staging.vercel.app` |
+| `VITE_SUPABASE_URL`   | Yes      | `https://[PROJECT_REF].supabase.co` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | (from Supabase) |
+| `DATABASE_URL`        | If using direct Postgres | (from Supabase) |
+| `JWT_SECRET`          | Yes      | (min 32 chars) |
 
-- **Root Directory:** `server`
-- **Build Command:** `npm install && npm run build`
-- **Start Command:** `npm start` (or `node dist/index.js`)
+Render automatically sets `RENDER_GIT_COMMIT` for deploy commit.
 
-From `server/`, `npm run build` runs `build:shared` then `build:server` (TypeScript). No client or Vite build.
+## 3. Verify
 
----
-
-## 3. Environment Variables
-
-Set in Render **Environment** tab. **Do not** use production keys. For a full checklist (mirror prod), see **`docs/staging_env_checklist.md`**.
-
-| Variable | Value | Notes |
-|----------|-------|-------|
-| `APP_ENV` | `staging` | Required |
-| `NODE_ENV` | `production` | Render runs as production |
-| `VITE_SUPABASE_URL` | Staging Supabase URL | |
-| `VITE_SUPABASE_ANON_KEY` | Staging anon key | |
-| `SUPABASE_SERVICE_ROLE_KEY` | Staging service role key | |
-| `JWT_SECRET` | Strong staging-only secret | Min 32 chars; different from prod |
-| `CORS_ALLOWLIST` | See below | Comma-separated, no spaces |
-
-### CORS_ALLOWLIST
-
-```
-https://staging.fanclubz.app,https://fanclubz-staging.vercel.app,http://localhost:3000,http://localhost:5173,http://localhost:5174
-```
-
-Adjust domains to match your staging frontend and local dev ports.
-
----
-
-## 4. Health Endpoint
-
-After deploy, verify:
+After deploy:
 
 ```bash
 curl https://fanclubz-backend-staging.onrender.com/health
 ```
 
-Expected response includes `"env": "staging"`.
+Expected:
 
----
+```json
+{
+  "ok": true,
+  "env": "staging",
+  "gitSha": "...",
+  "service": "backend",
+  "time": "..."
+}
+```
 
-## 5. Deploy
+Deep health:
 
-Trigger deploy. Check logs for startup errors. Ensure no production keys are used.
+```bash
+curl https://fanclubz-backend-staging.onrender.com/health/deep
+```
 
----
-
-## Checklist
-
-- [ ] Staging service created on Render
-- [ ] Build/start commands correct
-- [ ] All env vars set (staging Supabase, staging JWT, CORS_ALLOWLIST)
-- [ ] No production keys in env
-- [ ] Health endpoint returns `env: "staging"`
+All `checks` should have `ok: true`. If any table check fails, apply migrations.

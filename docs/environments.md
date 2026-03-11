@@ -1,57 +1,54 @@
-# Fan Club Z Environments
+# FanClubZ Environments
 
-## Overview
+Prod vs staging URLs and variable names.
 
-| Env       | Frontend                         | Backend                          | Supabase         | Use Case                      |
-|-----------|----------------------------------|----------------------------------|------------------|-------------------------------|
-| **local** | localhost:5174                   | localhost:3001                   | staging or prod* | Dev on your machine           |
-| **staging** | Vercel preview / staging.fanclubz.app | Render staging service       | Staging project  | Pre-prod testing              |
-| **production** | app.fanclubz.app             | fan-club-z.onrender.com          | Production project | Live users                  |
+## Branch Setup (Phase 0)
 
-* Local dev can point at staging Supabase for auth/data without running a local backend (see pnpm dev:staging).
+To keep staging changes from touching prod:
 
----
+1. **Create staging branch** from current prod `main` (if not exists):
+   ```bash
+   git checkout main && git pull && git checkout -b staging && git push -u origin staging
+   ```
 
-## Environment Variables by Layer
+2. **Vercel**: Set staging project/preview to deploy from `staging` branch. Production from `main`.
 
-### Frontend (VITE_* - baked at build time)
+3. **Render**: Create separate staging service (or use same service with branch override). Set staging service to deploy from `staging` branch. Production from `main`.
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| VITE_SUPABASE_URL | Yes | Supabase project URL |
-| VITE_SUPABASE_ANON_KEY | Yes | Supabase anon/public key |
-| VITE_API_BASE_URL | No* | API base URL. If unset, auto-detected by hostname. |
-| VITE_FRONTEND_URL | No | Canonical app URL for share links. |
-| VITE_APP_ENV | No | local | staging | production - informational. |
+4. **Result**: Production stays on `main`. Staging on `staging`. Fix staging without risking prod.
 
-* Required for pnpm dev:staging to point local frontend at staging backend.
+## URLs
 
-### Backend (server only - never exposed to client)
+| Service   | Production                         | Staging                                  |
+|-----------|------------------------------------|------------------------------------------|
+| Frontend  | https://app.fanclubz.app           | https://fanclubz-staging.vercel.app      |
+| Backend   | https://fan-club-z.onrender.com    | https://fanclubz-backend-staging.onrender.com |
+| Supabase  | (prod project)                     | (staging project)                        |
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| APP_ENV | No | local | staging | production. Default: NODE_ENV. |
-| CORS_ALLOWLIST | No | Comma-separated list of allowed origins. |
-| VITE_SUPABASE_URL | Yes | Same Supabase project URL as frontend. |
-| VITE_SUPABASE_ANON_KEY | Yes | Same anon key as frontend. |
-| SUPABASE_SERVICE_ROLE_KEY | Yes | Supabase service role key (server-side only). |
-| JWT_SECRET | Yes (prod) | JWT signing secret (min 32 chars in prod). |
+## Environment Variables
 
----
+### Backend (Render)
 
-## Scripts
+| Variable              | Prod                    | Staging                 |
+|-----------------------|-------------------------|-------------------------|
+| `APP_ENV`             | `production`            | `staging`               |
+| `CORS_ALLOWLIST`      | prod frontend origins   | staging frontend origin |
+| `VITE_SUPABASE_URL`   | prod Supabase URL       | staging Supabase URL    |
+| `SUPABASE_SERVICE_ROLE_KEY` | prod key          | staging key             |
+| `DATABASE_URL`        | prod Postgres (if used) | staging Postgres        |
 
-| Script | Description |
-|--------|-------------|
-| pnpm dev | Start server + client. Uses .env.local. |
-| pnpm dev:staging | Start client only, pointing at staging backend + staging Supabase. |
-| pnpm dev:prod | Start client only, pointing at production backend. |
+### Frontend (Vercel)
 
----
+| Variable              | Prod                    | Staging                 |
+|-----------------------|-------------------------|-------------------------|
+| `VITE_APP_ENV`        | `production`            | `staging`               |
+| `VITE_API_URL`        | prod backend URL        | staging backend URL     |
+| `VITE_SUPABASE_URL`   | prod Supabase URL       | staging Supabase URL    |
+| `VITE_SUPABASE_ANON_KEY` | prod anon key        | staging anon key        |
 
-## File Layout
+## Branches
 
-- .env.example - Root template (committed).
-- .env.staging.example - Staging variable names only (committed).
-- .env.production.example - Production variable names only (committed).
-- .env.local - Local overrides (gitignored).
+- **main** → Production (Vercel prod, Render prod)
+- **staging** → Staging (Vercel staging, Render staging)
+
+Configure Vercel and Render so staging deploys from `staging` branch and production from `main`.

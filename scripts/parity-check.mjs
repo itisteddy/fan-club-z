@@ -1,125 +1,134 @@
 #!/usr/bin/env node
 /**
- * Parity check: compare staging vs production API and frontend runtime.
- * Exit non-zero if any check fails. Use as promotion gate before merging staging → main.
+ * Parity check: compare staging vs production.
+ * Fetches /health, /health/deep, /debug/config from both backends.
+ * Exit non-zero on FAIL. Use as promotion gate before merging staging → main.
+ *
+ * Usage:
+ *   node scripts/parity-check.mjs
+ *   PROD_BACKEND_URL=https://... STAGING_BACKEND_URL=https://... node scripts/parity-check.mjs
  */
-const STAGING_WEB = 'https://fanclubz-staging.vercel.app';
-const PROD_WEB = 'https://app.fanclubz.app';
-const STAGING_API = 'https://fanclubz-backend-staging.onrender.com';
-const PROD_API = 'https://fan-club-z.onrender.com';
-const TIMEOUT_MS = 15000;
+const PROD_BACKEND_URL =
+  process.env.PROD_BACKEND_URL || 'https://fan-club-z.onrender.com';
+const STAGING_BACKEND_URL =
+  process.env.STAGING_BACKEND_URL || 'https://fanclubz-backend-staging.onrender.com';
+const TIMEOUT_MS = 20000;
 
-async function request(url, opts = {}) {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), opts.timeout ?? TIMEOUT_MS);
-  try {
-    const r = await fetch(url, { ...opts, signal: ctrl.signal });
-    return { ok: r.ok, status: r.status, headers: Object.fromEntries(r.headers), url: r.url };
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-async function getBody(url, opts = {}) {
+async function fetchJson(url, opts = {}) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), opts.timeout ?? TIMEOUT_MS);
   try {
     const r = await fetch(url, { ...opts, signal: ctrl.signal });
     const text = await r.text();
-    return { ok: r.ok, status: r.status, body: text.slice(0, 8000) };
+    let body;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = { _raw: text.slice(0, 500) };
+    }
+    return { ok: r.ok, status: r.status, body };
   } finally {
     clearTimeout(t);
   }
 }
 
-async function probe(name, fn) {
-  try {
-    const result = await fn();
-    return { name, ok: result.ok, message: result.message ?? (result.ok ? 'OK' : 'FAIL') };
-  } catch (e) {
-    return { name, ok: false, message: String(e?.message ?? e) };
-  }
-}
+const fails = [];
+const warns = [];
 
-const checks = [
-  probe('Health: staging backend', async () => {
-    const r = await request(`${STAGING_API}/health`);
-    const ok = r.ok && r.status === 200;
-    return { ok, message: ok ? 'OK' : `status=${r.status}` };
-  }),
-  probe('Health: prod backend', async () => {
-    const r = await request(`${PROD_API}/health`);
-    const ok = r.ok && r.status === 200;
-    return { ok, message: ok ? 'OK' : `status=${r.status}` };
-  }),
-  probe('Share route: staging returns OG HTML (not SPA)', async () => {
-    const { status, body } = await getBody(`${STAGING_WEB}/api/share/prediction?id=test`);
-    const hasRoot = body.includes('<div id="root">');
-    const hasOg = body.includes('<meta property="og:');
-    const ok = status === 200 && hasOg && !hasRoot;
-    return { ok, message: ok ? 'OK' : `status=${status} og=${hasOg} root=${hasRoot}` };
-  }),
-  probe('Share route: prod returns OG HTML (not SPA)', async () => {
-    const { status, body } = await getBody(`${PROD_WEB}/api/share/prediction?id=test`);
-    const hasRoot = body.includes('<div id="root">');
-    const hasOg = body.includes('<meta property="og:');
-    const ok = status === 200 && hasOg && !hasRoot;
-    return { ok, message: ok ? 'OK' : `status=${status} og=${hasOg} root=${hasRoot}` };
-  }),
-  probe('CORS preflight: place-bet OPTIONS parity', async () => {
-    const [s, p] = await Promise.all([
-      request(`${STAGING_API}/api/predictions/test-id/place-bet`, { method: 'OPTIONS' }),
-      request(`${PROD_API}/api/predictions/test-id/place-bet`, { method: 'OPTIONS' }),
+async function run() {
+  console.log('\n=== Staging ↔ Prod Parity Check ===\n');
+  console.log(`Prod:    ${PROD_BACKEND_URL}`);
+  console.log(`Staging: ${STAGING_BACKEND_URL}\n`);
+
+  const [prodHealth, stagingHealth, prodDeep, stagingDeep, prodConfig, stagingConfig] =
+    await Promise.all([
+      fetchJson(`${PROD_BACKEND_URL}/health`),
+      fetchJson(`${STAGING_BACKEND_URL}/health`),
+      fetchJson(`${PROD_BACKEND_URL}/health/deep`),
+      fetchJson(`${STAGING_BACKEND_URL}/health/deep`),
+      fetchJson(`${PROD_BACKEND_URL}/debug/config`),
+      fetchJson(`${STAGING_BACKEND_URL}/debug/config`),
     ]);
-    const sOk = s.status === 204 || s.status === 200;
-    const pOk = p.status === 204 || p.status === 200;
-    const ok = sOk && pOk;
-    return { ok, message: ok ? 'OK' : `staging=${s.status} prod=${p.status}` };
-  }),
-  probe('Runtime safety: no 5xx on user endpoints', async () => {
-    const dummy = '00000000-0000-0000-0000-000000000000';
-    const urls = [
-      `${STAGING_API}/api/v2/predictions/created/${dummy}`,
-      `${PROD_API}/api/v2/predictions/created/${dummy}`,
-      `${STAGING_API}/api/v2/prediction-entries/user/${dummy}`,
-      `${PROD_API}/api/v2/prediction-entries/user/${dummy}`,
-    ];
-    const results = await Promise.all(urls.map((u) => request(u)));
-    const any5xx = results.some((r) => r.status >= 500);
-    return { ok: !any5xx, message: any5xx ? `5xx: ${results.map((r) => r.status).join(',')}` : 'OK' };
-  }),
-  probe('Settlement merkle route exists (staging)', async () => {
-    // POST without auth: expect 401/403, NOT 404. 404 = route missing (deploy drift)
-    const r = await request(`${STAGING_API}/api/v2/settlement/manual/merkle`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ predictionId: '00000000-0000-0000-0000-000000000000', winningOptionId: '00000000-0000-0000-0000-000000000001' }),
-    });
-    const ok = r.status !== 404;
-    return { ok, message: ok ? `OK (${r.status})` : `404 - route missing, redeploy Render staging` };
-  }),
-  probe('Settlement merkle route exists (prod)', async () => {
-    const r = await request(`${PROD_API}/api/v2/settlement/manual/merkle`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ predictionId: '00000000-0000-0000-0000-000000000000', winningOptionId: '00000000-0000-0000-0000-000000000001' }),
-    });
-    const ok = r.status !== 404;
-    return { ok, message: ok ? `OK (${r.status})` : `404 - route missing` };
-  }),
-];
 
-const results = [];
-for (const c of checks) {
-  results.push(await c);
+  // 1) Basic health
+  if (!prodHealth.ok || prodHealth.status !== 200) {
+    fails.push(`Prod /health: ${prodHealth.status} (expected 200)`);
+  } else {
+    console.log('✅ Prod /health OK');
+  }
+  if (!stagingHealth.ok || stagingHealth.status !== 200) {
+    fails.push(`Staging /health: ${stagingHealth.status} (expected 200)`);
+  } else {
+    console.log('✅ Staging /health OK');
+  }
+
+  // 2) gitSha mismatch (FAIL if staging != prod when both report)
+  const prodSha = prodHealth.body?.gitSha;
+  const stagingSha = stagingHealth.body?.gitSha;
+  if (prodSha && stagingSha && prodSha !== stagingSha) {
+    fails.push(`gitSha mismatch: prod=${prodSha?.slice(0, 7)} staging=${stagingSha?.slice(0, 7)}`);
+  } else if (prodSha && stagingSha) {
+    console.log(`✅ gitSha match: ${prodSha?.slice(0, 7)}`);
+  }
+
+  // 3) DB connectivity
+  const prodDbOk = prodDeep.body?.db?.ok;
+  const stagingDbOk = stagingDeep.body?.db?.ok;
+  if (!prodDbOk) {
+    fails.push(`Prod DB: ${prodDeep.body?.db?.error || 'not ok'}`);
+  } else {
+    console.log('✅ Prod DB connectivity OK');
+  }
+  if (!stagingDbOk) {
+    fails.push(`Staging DB: ${stagingDeep.body?.db?.error || 'not ok'}`);
+  } else {
+    console.log('✅ Staging DB connectivity OK');
+  }
+
+  // 4) Missing tables in staging
+  const prodChecks = prodDeep.body?.checks || [];
+  const stagingChecks = stagingDeep.body?.checks || [];
+  const stagingFailed = stagingChecks.filter((c) => !c.ok);
+  if (stagingFailed.length > 0) {
+    fails.push(`Staging missing/broken tables: ${stagingFailed.map((c) => c.name).join(', ')}`);
+    stagingFailed.forEach((c) => console.log(`   ❌ ${c.name}: ${c.error}`));
+  } else if (stagingChecks.length > 0) {
+    console.log('✅ Staging required tables OK');
+  }
+
+  // 5) CORS allowlist mismatch (WARN)
+  const prodCorsCount = prodConfig.body?.corsAllowlistCount ?? 0;
+  const stagingCorsCount = stagingConfig.body?.corsAllowlistCount ?? 0;
+  if (prodCorsCount !== stagingCorsCount) {
+    warns.push(`CORS allowlist count: prod=${prodCorsCount} staging=${stagingCorsCount}`);
+  }
+  const prodCorsSample = JSON.stringify(prodConfig.body?.corsAllowlistSample || []);
+  const stagingCorsSample = JSON.stringify(stagingConfig.body?.corsAllowlistSample || []);
+  if (prodCorsSample !== stagingCorsSample) {
+    warns.push(`CORS sample differs: prod=${prodCorsSample} staging=${stagingCorsSample}`);
+  }
+
+  // 6) Supabase host mismatch (WARN - different projects expected)
+  const prodSupabase = prodConfig.body?.supabaseUrlHost;
+  const stagingSupabase = stagingConfig.body?.supabaseUrlHost;
+  if (prodSupabase && stagingSupabase && prodSupabase === stagingSupabase) {
+    warns.push('Supabase host same for prod and staging (expected different projects)');
+  }
+
+  // Summary
+  console.log('\n--- Summary ---');
+  if (warns.length) {
+    warns.forEach((w) => console.log('⚠️  WARN:', w));
+  }
+  if (fails.length) {
+    fails.forEach((f) => console.log('❌ FAIL:', f));
+    console.log(`\n${fails.length} failure(s), ${warns.length} warning(s)`);
+    process.exit(1);
+  }
+  console.log(`\n✅ All checks passed (${warns.length} warning(s))`);
 }
 
-const passed = results.filter((r) => r.ok).length;
-const failed = results.filter((r) => !r.ok);
-console.log('\n=== Parity Check ===');
-results.forEach((r) => console.log(r.ok ? '✅' : '❌', r.name, '-', r.message));
-console.log(`\n${passed}/${results.length} passed`);
-if (failed.length) {
-  console.error('Failed:', failed.map((f) => f.name).join(', '));
+run().catch((e) => {
+  console.error('Parity check error:', e?.message || e);
   process.exit(1);
-}
+});

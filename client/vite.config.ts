@@ -195,6 +195,13 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_STORE_SAFE_MODE': JSON.stringify(
         env.VITE_STORE_SAFE_MODE || (mode === 'ios' ? 'true' : 'false')
       ),
+      // Parity tooling: build stamp for staging vs prod identification
+      'import.meta.env.VITE_GIT_SHA': JSON.stringify(
+        env.VERCEL_GIT_COMMIT_SHA || env.VITE_GIT_SHA || env.GIT_SHA || 'unknown'
+      ),
+      'import.meta.env.VITE_APP_ENV': JSON.stringify(
+        env.VITE_APP_ENV || env.APP_ENV || (mode === 'production' ? 'production' : 'development')
+      ),
     },
     optimizeDeps: {
       entries: ['src/main.tsx'],

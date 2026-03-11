@@ -27,6 +27,13 @@ import { parseDeepLink } from './utils/deepLinking'
 // Centralized version management
 console.log(`🚀 Fan Club Z ${APP_VERSION} - CONSOLIDATED ARCHITECTURE - SINGLE SOURCE OF TRUTH`)
 
+// Parity tooling: build stamp (hosts only, no secrets)
+const apiUrl = import.meta.env.VITE_API_URL || ''
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
+const apiHost = apiUrl ? (() => { try { return new URL(apiUrl).host; } catch { return '(invalid)'; } })() : '(not set)'
+const supabaseHost = supabaseUrl ? (() => { try { return new URL(supabaseUrl).host; } catch { return '(invalid)'; } })() : '(not set)'
+console.log(`FanClubZ build: ${import.meta.env.VITE_GIT_SHA || 'unknown'} env:${import.meta.env.VITE_APP_ENV || 'unknown'} api:${apiHost} supabase:${supabaseHost}`)
+
 // Early boot log: verify BUILD_TARGET is resolved (prevents ReferenceError)
 const buildDebug = getBuildDebugInfo();
 if (buildDebug) {

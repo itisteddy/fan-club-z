@@ -18,6 +18,9 @@ interface ImportMetaEnv {
   readonly VITE_FCZ_COMMENTS_V2?: string;
   readonly VITE_FCZ_UNIFIED_CARDS?: string;
   readonly VITE_FCZ_COMMENTS_SORT?: string;
+  // Parity tooling
+  readonly VITE_GIT_SHA?: string;
+  readonly VITE_APP_ENV?: string;
   // Optional services
   readonly VITE_DEBUG?: string;
   readonly VITE_VAPID_PUBLIC_KEY?: string;

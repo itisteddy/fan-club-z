@@ -33,6 +33,9 @@ import { db } from './config/database';
 import { VERSION } from '@fanclubz/shared';
 import { checkMaintenanceMode } from './middleware/maintenance';
 import { clientIdMiddleware } from './middleware/clientId';
+import { requestIdMiddleware } from './middleware/requestId';
+import healthRouter from './routes/health';
+import debugRouter from './routes/debug';
 import { requireCryptoEnabled } from './middleware/requireCryptoEnabled';
 
 const app = express();
@@ -136,6 +139,9 @@ app.use(express.json({
   },
 }));
 
+// Request ID for tracing (include in error responses)
+app.use(requestIdMiddleware);
+
 // Maintenance mode check (must be before routes)
 app.use(checkMaintenanceMode);
 
@@ -175,20 +181,9 @@ function checkConditionalGet(req: express.Request, res: express.Response, etag: 
   return false;
 }
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'OK',
-    env: config.server.appEnv || config.server.nodeEnv || 'production',
-    timestamp: new Date().toISOString(),
-    version: VERSION,
-    environment: config.server.nodeEnv || 'production',
-    uptime: process.uptime(),
-    cors: 'enabled',
-    settlement: 'enabled',
-    compression: 'enabled', // [PERF] Added compression indicator
-  });
-});
+// Health and debug endpoints (read-only, no secrets)
+app.use(healthRouter);
+app.use(debugRouter);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -376,23 +371,27 @@ app.get('/api/v2/test-cors', (req, res) => {
 
 // 404 handler
 app.use('*', (req, res) => {
-  console.log(`❌ 404 - Route not found: ${req.originalUrl} - origin:`, req.headers.origin);
+  const rid = (req as any).requestId;
+  console.log(`❌ 404 - Route not found: ${req.originalUrl} - origin:`, req.headers.origin, rid ? `rid=${rid}` : '');
   res.status(404).json({
     error: 'Not Found',
     message: `Route ${req.originalUrl} not found`,
     timestamp: new Date().toISOString(),
-    version: VERSION
+    version: VERSION,
+    ...(rid && { requestId: rid }),
   });
 });
 
 // Error handler
 app.use((error: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('🚨 Server error:', error);
+  const rid = (req as any).requestId;
+  console.error('🚨 Server error:', error, rid ? `rid=${rid}` : '');
   res.status(500).json({
     error: 'Internal Server Error',
     message: 'Something went wrong',
     timestamp: new Date().toISOString(),
-    version: VERSION
+    version: VERSION,
+    ...(rid && { requestId: rid }),
   });
 });
 
