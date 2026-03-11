@@ -281,6 +281,7 @@ async function main() {
       if (n > 0) {
         console.log(`  ${table}: ${n} rows`);
         total += n;
+      }
     }
     console.log(`\n✅ Done. Total rows copied: ${total} (auth: ${authCount})`);
   } finally {

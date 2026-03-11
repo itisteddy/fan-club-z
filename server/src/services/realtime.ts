@@ -7,8 +7,8 @@ let io: SocketIOServer | null = null;
 export function initRealtime(server: HttpServer) {
   if (io) return io;
 
-  // Same allowlist as REST API (env CORS_ALLOWLIST / CORS_ORIGINS or getCorsOrigins() defaults)
   const allowedOrigins = getCorsOrigins();
+  console.log('[RT] Socket.io CORS allowlist:', allowedOrigins.filter(o => o.includes('fanclubz') || o.includes('localhost')));
   const warnedBlockedOrigins = new Set<string>();
   
   io = new SocketIOServer(server, {
@@ -52,10 +52,12 @@ export function initRealtime(server: HttpServer) {
       credentials: true,
       methods: ['GET', 'POST'],
     },
-    transports: ['websocket', 'polling'], // Add polling fallback for Render compatibility
-    allowEIO3: true, // Support older clients
+    transports: ['websocket', 'polling'],
+    allowEIO3: true,
     pingTimeout: 60000,
     pingInterval: 25000,
+    connectTimeout: 45000, // Render cold start can take 30s+
+    upgradeTimeout: 30000,
   });
 
   io.on('connection', (socket) => {

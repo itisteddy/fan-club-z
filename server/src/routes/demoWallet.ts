@@ -95,6 +95,7 @@ demoWallet.post('/faucet', async (req, res) => {
     const { error: txErr } = await supabase.from('wallet_transactions').insert({
       user_id: userId,
       type: 'deposit',
+      direction: 'credit',
       channel: 'fiat',
       provider: PROVIDER,
       amount,

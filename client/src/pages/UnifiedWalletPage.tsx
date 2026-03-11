@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Plus, ArrowDownToLine, DollarSign, Lock, Wallet, RefreshCw, HelpCircle, X, ArrowRightLeft, Banknote, Gift } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import { QK } from '@/lib/queryKeys';
 import { useAccount, useDisconnect, useSwitchChain } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
 import toast from 'react-hot-toast';
@@ -39,6 +41,7 @@ interface WalletPageProps {
 }
 
 const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
+  const queryClient = useQueryClient();
   const { user, isAuthenticated } = useAuthStore();
   const { address, isConnected, chainId } = useAccount();
   const { disconnect } = useDisconnect();
@@ -201,6 +204,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
         throw new Error(json?.message || 'Failed to faucet demo credits');
       }
       setDemoSummary(json?.summary ?? null);
+      await queryClient.invalidateQueries({ queryKey: QK.walletActivity(user.id) });
       await refetchActivity();
       const nextEligibleAt = json?.nextEligibleAt ? Date.parse(String(json.nextEligibleAt)) : NaN;
       const nextAt = Number.isFinite(nextEligibleAt) ? nextEligibleAt : Date.now() + 24 * 60 * 60 * 1000;
@@ -227,7 +231,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
     } finally {
       setDemoLoading(false);
     }
-  }, [user?.id, refetchActivity, demoRemainingMs, demoCooldownKey]);
+  }, [user?.id, queryClient, refetchActivity, demoRemainingMs, demoCooldownKey]);
 
   useEffect(() => {
     if (isDemoMode) {

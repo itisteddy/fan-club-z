@@ -28,13 +28,16 @@ export const RealtimeProvider: React.FC<Props> = ({ children }) => {
     const url = getSocketUrl().replace(/\/$/, '');
     console.log('[REALTIME] Connecting to Socket.io:', url);
     const socket = io(url, {
-      transports: ['websocket', 'polling'], // Add polling fallback for Render compatibility
+      // Polling first: Render free tier cold start often fails WebSocket upgrade.
+      // HTTP polling wakes the service, then we upgrade to WebSocket.
+      transports: ['polling', 'websocket'],
       withCredentials: true,
       autoConnect: true,
       reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 500,
-      timeout: 20000,
+      reconnectionAttempts: 15,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
+      timeout: 25000,
     });
     socketRef.current = socket;
 

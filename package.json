@@ -33,6 +33,7 @@
     "db:migrate:staging": "APP_ENV=staging npm --prefix server run db:migrate-all",
     "parity-check": "node scripts/parity-check.mjs",
     "db:port-prod-to-staging": "node scripts/db-port-prod-to-staging.mjs",
+    "db:add-user-to-staging": "node scripts/db-add-user-to-staging.mjs",
     "staging-smoke-test": "tsx scripts/staging-smoke-test.ts",
     "db:verify:staging": "tsx scripts/staging-smoke-test.ts"
   },
