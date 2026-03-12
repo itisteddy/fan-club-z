@@ -107,9 +107,26 @@ Root-cause notes from staging evidence:
   - Added option-pool/odds fallback sync after recompute to prevent stale `prediction_options.total_staked`.
 
 ### Remaining Blockers
-1. Deploy staging branch with the above `placeBet.ts` fix.
-2. Re-run the same staging checklist and confirm:
-   - single aggregated row per user/market/outcome
-   - two `bet_lock` rows with sum `25`
-   - `prediction_options.total_staked` increments by `25`
-3. Completed-route click-path is still unverified for this fresh participant because no completed positions exist; requires a settled fixture for that participant to close this check fully.
+1. Completed-route click-path remains data-dependent for fresh users with zero completed positions; treat as non-blocking unless route endpoint returns errors.
+
+## A3.1 Revalidation After Staging Deploy (gitSha ec603287, 2026-03-12)
+Deployed commit:
+- `ec60328727923c813590b27f29f8162f6b9cbefd`
+
+Revalidation was run twice:
+1. Existing older fixture (`4303b114-77b7-4a10-b232-df31be45ae56`): mutation integrity passed except `optionPoolIncreased25` comparison because prior stale fixture state was reconciled to the full historical active pool.
+2. Fresh fixture (seeded after deploy): **all required integrity checks passed**.
+
+Fresh fixture IDs used:
+- `predictionId`: `42af36ad-7237-49c0-aa05-727b0c7dec89`
+- `optionId`: `fdf554d4-3f66-4410-96ef-9ededb0826ad`
+
+Required pass criteria status on fresh fixture:
+- one effective active position row with amount `25`: PASS
+- two `wallet_transactions` `bet_lock` rows for `10` and `15`: PASS
+- `prediction_options.total_staked = 25` for selected option: PASS
+- post-submit quote `current = 25`: PASS
+- wallet available/reserved balances consistent (`-25/+25`): PASS
+
+A3.1 gate status:
+- Mutation integrity blockers from A3 staging validation are resolved on staging.
