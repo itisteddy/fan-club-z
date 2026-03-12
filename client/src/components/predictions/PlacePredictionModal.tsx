@@ -27,6 +27,7 @@ import { usePaystackStatus, useFiatSummary } from '@/hooks/useFiatWallet';
 import { getPayoutPreview, getPreOddsMultiple } from '@fanclubz/shared';
 import { isCryptoEnabledForClient, isZaurumModeEnabled } from '@/lib/cryptoFeatureFlags';
 import { apiClient } from '@/lib/apiClient';
+import { useWalletSummary } from '@/hooks/useWalletSummary';
 
 interface PlacePredictionModalProps {
   prediction: Prediction | null;
@@ -84,6 +85,10 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
   const { sessionHealthy } = useWeb3Recovery();
   const walletAddressLower = address?.toLowerCase() ?? null;
   const { wallet: walletUSDC, available: escrowAvailable, refetch: refetchBalances } = useUnifiedBalance();
+  const { data: walletSummary, refetch: refetchWalletSummary } = useWalletSummary(user?.id, {
+    walletAddress: walletAddressLower ?? undefined,
+    enabled: Boolean(user?.id),
+  });
   const { mode, setMode, isDemoEnabled, isFiatEnabled, setFiatEnabled } = useFundingModeStore();
   const zaurumModeEnabled = isZaurumModeEnabled();
   
@@ -98,8 +103,9 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
     }
   }, [paystackStatus?.enabled, setFiatEnabled]);
   
-  const isFiatMode = isFiatEnabled && mode === 'fiat';
-  const isDemoMode = isDemoEnabled && mode === 'demo';
+  const effectiveMode: FundingMode = zaurumModeEnabled ? 'demo' : mode;
+  const isFiatMode = isFiatEnabled && effectiveMode === 'fiat';
+  const isDemoMode = isDemoEnabled && effectiveMode === 'demo';
 
   const cryptoAllowed = isCryptoEnabledForClient();
   const BASE_BETS_ENABLED =
@@ -110,10 +116,14 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
   const isCryptoMode = !isDemoMode && !isFiatMode && cryptoAllowed;
 
   useEffect(() => {
+    if (zaurumModeEnabled && mode !== 'demo') {
+      setMode('demo');
+      return;
+    }
     if (mode === 'crypto' && !cryptoAllowed) {
       setMode(isDemoEnabled ? 'demo' : isFiatEnabled ? 'fiat' : 'demo');
     }
-  }, [cryptoAllowed, isDemoEnabled, isFiatEnabled, mode, setMode]);
+  }, [cryptoAllowed, isDemoEnabled, isFiatEnabled, mode, setMode, zaurumModeEnabled]);
 
   const [demoSummary, setDemoSummary] = useState<null | { available: number; reserved: number; total: number }>(null);
   const [demoLoading, setDemoLoading] = useState(false);
@@ -149,6 +159,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
       const json = await resp.json().catch(() => null);
       if (!resp.ok) throw new Error(json?.message || 'Failed to claim Zaurum');
       setDemoSummary(json?.summary ?? null);
+      await refetchWalletSummary();
       if (json?.nextEligibleAt) {
         setCooldown(`fcz_demo_credits_next_at:${user.id}`, String(json.nextEligibleAt));
       }
@@ -162,7 +173,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
     } finally {
       setDemoLoading(false);
     }
-  }, [user?.id]);
+  }, [refetchWalletSummary, user?.id]);
 
   useEffect(() => {
     if (isDemoMode && isOpen) {
@@ -207,10 +218,15 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
   const expectedReturn = poolPreview ? poolPreview.expectedReturn : 0;
   const potentialProfit = poolPreview ? poolPreview.profit : 0;
   const demoAvailable = demoSummary?.available ?? 0;
+  const zaurumAvailable = Number(
+    walletSummary?.stakeBalance ??
+    walletSummary?.balances?.stakeBalance ??
+    demoAvailable
+  );
   const fiatAvailable = fiatData?.summary?.availableNgn ?? 0;
   
   // Display balance depends on mode
-  const displayBalance = isFiatMode ? fiatAvailable : (isCryptoMode ? escrowAvailable : demoAvailable);
+  const displayBalance = isFiatMode ? fiatAvailable : (isCryptoMode ? escrowAvailable : zaurumAvailable);
   const displayCurrency: 'USD' | 'NGN' = isFiatMode ? 'NGN' : 'USD';
   const formatZaurumAmount = (amount: number, opts?: { compact?: boolean; showSign?: boolean }) => {
     const numericAmount = Number.isFinite(amount) ? amount : 0;
@@ -378,8 +394,8 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
       return;
     }
 
-    if (isDemoMode && numAmount > demoAvailable) {
-      toast.error(`Insufficient balance. You have ${formatModeAmount(demoAvailable)} available, but tried to stake ${formatModeAmount(numAmount)}.`);
+    if (isDemoMode && numAmount > zaurumAvailable) {
+      toast.error(`Insufficient balance. You have ${formatModeAmount(zaurumAvailable)} available, but tried to stake ${formatModeAmount(numAmount)}.`);
       return;
     }
 
@@ -438,7 +454,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
       ]);
       await refetchBalances();
       if (isDemoMode) {
-        await fetchDemoSummary();
+        await Promise.all([fetchDemoSummary(), refetchWalletSummary()]);
       }
       if (isFiatMode) {
         await refetchFiat();
@@ -596,7 +612,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                         <p className="font-semibold">Zaurum available</p>
                         <p className="text-emerald-700 inline-flex items-center gap-1">
                           <ZaurumMark size={12} />
-                          <span>{formatZaurumNumber(demoAvailable)}</span>
+                          <span>{formatZaurumNumber(zaurumAvailable)}</span>
                         </p>
                       </div>
                     </div>

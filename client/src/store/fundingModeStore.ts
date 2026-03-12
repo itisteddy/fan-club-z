@@ -5,11 +5,13 @@ import { Capacitor } from '@capacitor/core';
 export type FundingMode = 'crypto' | 'demo' | 'fiat';
 
 const ZAURUM_ONLY_ENABLED = (() => {
-  const raw = String(import.meta.env.VITE_ZAURUM_MODE || '').toLowerCase().trim();
-  return raw === '1' || raw === 'true' || raw === 'zaurum';
+  const walletMode = String(import.meta.env.VITE_FCZ_WALLET_MODE || '').toLowerCase().trim();
+  if (walletMode === 'zaurum_only') return true;
+  const legacy = String(import.meta.env.VITE_ZAURUM_MODE || '').toLowerCase().trim();
+  return legacy === '1' || legacy === 'true' || legacy === 'zaurum';
 })();
 
-// Parity rule: native mobile defaults to Demo Credits.
+// Parity rule: native mobile defaults to Zaurum.
 // Web can optionally enable demo via VITE_FCZ_ENABLE_DEMO.
 const IS_NATIVE = Capacitor.isNativePlatform() === true;
 const DEMO_ENABLED = import.meta.env.VITE_FCZ_ENABLE_DEMO === '1' || IS_NATIVE || ZAURUM_ONLY_ENABLED;
@@ -32,7 +34,7 @@ export const useFundingModeStore = create<FundingModeState>()(
       isFiatEnabled: false,
       setMode: (mode) => {
         const state = get();
-        if (ZAURUM_ONLY_ENABLED && mode === 'crypto') {
+        if (ZAURUM_ONLY_ENABLED && mode !== 'demo') {
           set({ mode: 'demo' });
           return;
         }
@@ -64,7 +66,7 @@ export const useFundingModeStore = create<FundingModeState>()(
       // If demo is disabled at runtime, always force crypto
       onRehydrateStorage: () => (state) => {
         if (!state) return;
-        if (ZAURUM_ONLY_ENABLED && state.mode === 'crypto') {
+        if (ZAURUM_ONLY_ENABLED && state.mode !== 'demo') {
           state.setMode('demo');
           return;
         }
@@ -76,4 +78,3 @@ export const useFundingModeStore = create<FundingModeState>()(
     }
   )
 );
-

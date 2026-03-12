@@ -105,7 +105,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoError, setDemoError] = useState<string | null>(null);
 
-  // Demo credits faucet cooldown (24h) - persisted per user
+  // Zaurum faucet cooldown (24h) - persisted per user
   const [demoNextAtMs, setDemoNextAtMs] = useState<number | null>(null);
   const [demoRemainingMs, setDemoRemainingMs] = useState<number>(0);
 
@@ -547,7 +547,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                       label="Available"
                       value={formatZaurumAmount(stakeBalance)}
                       variant="default"
-                      icon={<DollarSign className="w-4 h-4" />}
+                      icon={<ZaurumMark size={14} />}
                       subtitle="Ready to stake"
                     />
                     <StatCard
@@ -647,37 +647,31 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
               )}
             </StatRow>
 
-            {/* Creator earnings (explicit internal balance, near top) */}
-            <Card>
-              <CardHeader title="Creator Earnings" />
-              <CardContent>
-                <div className="rounded-xl border border-amber-100 bg-amber-50 p-4">
-                  <p className="text-xs text-amber-700">
-                    Move creator earnings into your available balance to place more stakes.
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCreatorTransferAmount('');
-                        setShowCreatorTransfer(true);
-                      }}
-                      disabled={creatorEarningsBalance <= 0}
-                      className="inline-flex items-center justify-center rounded-lg bg-amber-200 px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Move to Balance
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowCreatorHistory(true)}
-                      className="inline-flex items-center justify-center rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100/40"
-                    >
-                      View history
-                    </button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="rounded-xl border border-amber-100 bg-amber-50 p-4">
+              <p className="text-xs text-amber-700">
+                Move creator earnings into your available balance to place more stakes.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreatorTransferAmount('');
+                    setShowCreatorTransfer(true);
+                  }}
+                  disabled={creatorEarningsBalance <= 0}
+                  className="inline-flex items-center justify-center rounded-lg bg-amber-200 px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Move to Balance
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCreatorHistory(true)}
+                  className="inline-flex items-center justify-center rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100/40"
+                >
+                  View history
+                </button>
+              </div>
+            </div>
 
             {/* Phase 7D: FX USD estimates (display-only) */}
             {isFiatMode && (

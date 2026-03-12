@@ -60,6 +60,7 @@ import { t } from '@/lib/lexicon';
 import { useMerkleProof } from '@/hooks/useMerkleProof';
 import { useMerkleClaim } from '@/hooks/useMerkleClaim';
 import { usePredictionActivity } from '@/hooks/useActivityFeed';
+import { useWalletSummary } from '@/hooks/useWalletSummary';
 
 const showSuccessToast = (message: string) => toast.success(message);
 const showErrorToast = (message: string) => toast.error(message);
@@ -239,6 +240,14 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   // Wallet address for additional checks
   const { address: walletAddress } = useAccount();
   const lowerWallet = walletAddress?.toLowerCase();
+  const {
+    data: walletSummary,
+    isLoading: loadingWalletSummary,
+    refetch: refetchWalletSummary,
+  } = useWalletSummary(currentUser?.id, {
+    walletAddress: lowerWallet,
+    enabled: Boolean(currentUser?.id),
+  });
   // Only request proof when prediction is actually settled
   const isSettled = useMemo(() => {
     const p = predictions.find(p => p.id === predictionId);
@@ -266,9 +275,16 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       setFiatEnabled(paystackStatus.enabled);
     }
   }, [paystackStatus?.enabled, setFiatEnabled]);
-  const isDemoMode = showDemo && mode === 'demo';
-  const isFiatMode = effectiveFiatEnabled && mode === 'fiat';
+  useEffect(() => {
+    if (zaurumModeEnabled && mode !== 'demo') {
+      setMode('demo');
+    }
+  }, [mode, setMode, zaurumModeEnabled]);
+  const effectiveMode = zaurumModeEnabled ? 'demo' : mode;
+  const isDemoMode = showDemo && effectiveMode === 'demo';
+  const isFiatMode = effectiveFiatEnabled && effectiveMode === 'fiat';
   const isCryptoMode = effectiveCryptoEnabled && !isDemoMode && !isFiatMode;
+  const isZaurumStakeMode = isDemoMode || zaurumModeEnabled;
 
   // Demo wallet summary (DB-backed)
   const [demoSummary, setDemoSummary] = useState<null | { currency: string; available: number; reserved: number; total: number; lastUpdated: string }>(null);
@@ -325,10 +341,10 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   }, [currentUser?.id]);
 
   useEffect(() => {
-    if (isAuthenticated && isDemoMode) {
+    if (isAuthenticated && isZaurumStakeMode) {
       void fetchDemoSummary();
     }
-  }, [isAuthenticated, isDemoMode, fetchDemoSummary]);
+  }, [isAuthenticated, isZaurumStakeMode, fetchDemoSummary]);
   
   // Get prediction from store
   const prediction = useMemo(() => {
@@ -447,8 +463,13 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   }, [media, prediction]);
 
   const demoAvailable = Number(demoSummary?.available ?? 0);
+  const zaurumAvailable = Number(
+    walletSummary?.stakeBalance ??
+    walletSummary?.balances?.stakeBalance ??
+    demoAvailable
+  );
   const fiatAvailable = Number(fiatData?.summary?.availableNgn ?? 0);
-  const displayAvailable = isFiatMode ? fiatAvailable : (isDemoMode ? demoAvailable : availableToStake);
+  const displayAvailable = isFiatMode ? fiatAvailable : (isZaurumStakeMode ? zaurumAvailable : availableToStake);
 
   // User balance - source depends on funding mode
   const userBalance = isAuthenticated ? displayAvailable : 0;
@@ -635,7 +656,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     // - crypto: on-chain availableToStake
     // - demo: demo ledger available
     // - fiat: fiat ledger available (NGN)
-    const maxAvailable = isFiatMode ? fiatAvailable : (isDemoMode ? demoAvailable : availableToStake);
+    const maxAvailable = isFiatMode ? fiatAvailable : (isZaurumStakeMode ? zaurumAvailable : availableToStake);
     
     if (amount > maxAvailable) {
       // Open deposit modal instead of placing bet (crypto mode)
@@ -648,7 +669,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
         navigate('/wallet');
         return;
       }
-      showErrorToast(`Insufficient balance. Available: $${maxAvailable.toFixed(2)}`);
+      showErrorToast(`Insufficient balance. Available: ${formatZaurumAmount(maxAvailable)}`);
       return;
     }
 
@@ -672,8 +693,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
         walletAddress
       );
 
-      showSuccessToast(`Stake placed: ${isFiatMode ? `₦${Number(stakeAmount).toLocaleString()}` : `$${stakeAmount}`} | lock consumed`);
-      AriaUtils.announce(`Prediction placed successfully for ${stakeAmount} ${isFiatMode ? 'naira' : 'dollars'}`);
+      showSuccessToast(`Stake placed: ${isFiatMode ? `₦${Number(stakeAmount).toLocaleString()}` : formatZaurumAmount(amount)} | lock consumed`);
+      AriaUtils.announce(`Prediction placed successfully for ${stakeAmount} ${isFiatMode ? 'naira' : 'zaurum'}`);
       
       // IMPORTANT: Keep user on prediction details page - do not navigate away
       // Inline confirmation chip (keep user on overview)
@@ -696,8 +717,8 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
           queryClient.invalidateQueries({ queryKey: QK.prediction(predictionId) }),
           queryClient.invalidateQueries({ queryKey: QK.predictionEntries(predictionId) }),
         ]);
-      if (isDemoMode) {
-        await fetchDemoSummary();
+      if (isZaurumStakeMode) {
+        await Promise.all([fetchDemoSummary(), refetchWalletSummary()]);
       }
       }
       
@@ -1290,11 +1311,15 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
 
                       <div>
                         <label htmlFor="stake-input" className="block text-sm font-medium text-gray-900 mb-2">
-                          Stake Amount ({isFiatMode ? 'NGN' : (isDemoMode ? 'Zaurum' : 'USD')})
+                          Stake Amount ({isFiatMode ? 'NGN' : (isZaurumStakeMode ? 'Zaurum' : 'USD')})
                         </label>
                         <div className="relative">
                           {isFiatMode ? (
                             <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+                          ) : isZaurumStakeMode ? (
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                              <ZaurumMark size={14} />
+                            </span>
                           ) : (
                             <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
                           )}
@@ -1314,9 +1339,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                       
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-600">
-                          Available: {(isFiatMode ? loadingFiat : (isDemoMode ? demoLoading : isLoadingBalance))
+                          Available: {(isFiatMode ? loadingFiat : (isZaurumStakeMode ? loadingWalletSummary : isLoadingBalance))
                             ? 'Loading…'
-                            : (isDemoMode
+                            : (isZaurumStakeMode
                                 ? (
                                   <span className="inline-flex items-center gap-1 align-middle">
                                     <ZaurumMark size={11} />
@@ -1325,12 +1350,12 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                                 )
                                 : formatStakeModeAmount(userBalance, { compact: true }))}
                         </span>
-                        {stakeAmount && !(isFiatMode ? loadingFiat : (isDemoMode ? demoLoading : isLoadingBalance)) && parseFloat(stakeAmount) > userBalance && (
+                        {stakeAmount && !(isFiatMode ? loadingFiat : (isZaurumStakeMode ? loadingWalletSummary : isLoadingBalance)) && parseFloat(stakeAmount) > userBalance && (
                           <span className="text-red-600 font-medium">Insufficient balance</span>
                         )}
                       </div>
 
-                      {isDemoMode && (
+                      {isZaurumStakeMode && (
                         <div className="pt-1">
                           <button
                             type="button"
@@ -1352,7 +1377,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                             disabled={isPlacingBet || amount > userBalance}
                             className="rounded-lg border bg-gray-50 px-3 py-2 text-sm font-medium hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                           >
-                            {isFiatMode ? `₦${amount.toLocaleString()}` : (isDemoMode ? (
+                            {isFiatMode ? `₦${amount.toLocaleString()}` : (isZaurumStakeMode ? (
                               <span className="inline-flex items-center gap-1">
                                 <ZaurumMark size={10} />
                                 <span>{amount}</span>
@@ -1463,12 +1488,12 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       {activeTab === 'overview' && !isClosedOrSettled && (
         (() => {
           const amt = parseFloat(stakeAmount || '0');
-          const availableNow = isFiatMode ? fiatAvailable : (isDemoMode ? demoAvailable : availableToStake);
+          const availableNow = isFiatMode ? fiatAvailable : (isZaurumStakeMode ? zaurumAvailable : availableToStake);
           const need = Math.max(0, amt - availableNow);
           const computedLabel = !amt || amt <= 0
             ? t('betVerb')
             : (need > 0
-                ? (isDemoMode
+                ? (isZaurumStakeMode
                     ? `Claim Zaurum (need ${formatZaurumAmount(need)})`
                     : (isFiatMode ? `Deposit NGN (need ₦${need.toFixed(0)})` : `Add funds (need $${need.toFixed(2)})`))
                 : `${t('betVerb')}: ${formatStakeModeAmount(amt)}`);
@@ -1477,7 +1502,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
             <StickyBetBar
               canBet={canBet}
               onPlace={async () => {
-                if (isDemoMode && need > 0) {
+                if (isZaurumStakeMode && need > 0) {
                   await faucetDemo();
                   return;
                 }
