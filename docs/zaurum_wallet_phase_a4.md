@@ -123,3 +123,35 @@ No production service or production branch changes are required.
 
 ## A5 Gate
 - **A5 remains blocked** until staging backend serves `9175e819` (or newer) and the A4 checklist is fully green.
+
+## Deployment-State Recheck (Post Build-Green Patch, 2026-03-12)
+Staging branch head:
+- `origin/staging = 674b45fd` (`build(server): disable declaration emit to resolve TS2742 on staging`)
+
+Live staging backend identity checks:
+- `GET /health` -> `gitSha = ec60328727923c813590b27f29f8162f6b9cbefd`
+- `GET /debug/config` -> `gitSha = ec60328727923c813590b27f29f8162f6b9cbefd`
+
+Result:
+- deployment is still stale on `ec603287`
+- live staging has not advanced to `674b45fd` yet
+
+Validation rerun artifact:
+- `/tmp/a4_staging_validation.json`
+- timestamp: `2026-03-12T03:20:05.665Z`
+- backendSha in report: `ec603287`
+
+Final pass/fail table on current live staging:
+- walletSummaryLoads: PASS
+- walletSummaryHasContextValues: PASS
+- creatorTransferWorks: FAIL
+- stakeFlowBet1: PASS
+- stakeFlowBet2: PASS
+- stakeFlowQuoteCurrentAfterSubmit: PASS
+- stakeFlowNoDuplicateRows: PASS
+- discoverRouteApiLoads: PASS
+- stakesRouteApiLoads: PASS
+- completedRouteApiLoads: PASS
+
+Gate status:
+- **A5 remains blocked** (deployment-state only).
