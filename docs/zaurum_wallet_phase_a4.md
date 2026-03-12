@@ -76,3 +76,50 @@ At validation time, hosted staging backend still reported previous SHA (`ec60328
 
 ## Guardrail Confirmation
 - No avoid-for-now files were modified for A4 implementation.
+
+## Final Re-Run (Parity Blocker Check, 2026-03-12)
+Second execution of the same validation flow was run after pushing:
+- `9175e819` (`server/src/routes/walletSummary.ts` compatibility fix)
+- `43c38c52` (this A4 doc update stream)
+
+Staging backend identity checks at run time:
+- `GET /health` -> `gitSha = ec60328727923c813590b27f29f8162f6b9cbefd`
+- `GET /debug/config` -> `gitSha = ec60328727923c813590b27f29f8162f6b9cbefd`
+
+This confirms staging backend did **not** deploy `9175e819` (or newer) from `staging`.
+
+Validation artifact:
+- `/tmp/a4_staging_validation.json`
+- timestamp: `2026-03-12T02:25:49.576Z`
+- backendSha in report: `ec603287`
+
+Checklist results on this re-run:
+- walletSummaryLoads: PASS
+- walletSummaryHasContextValues: PASS
+- creatorTransferWorks: FAIL
+- stakeFlowBet1: PASS
+- stakeFlowBet2: PASS
+- stakeFlowQuoteCurrentAfterSubmit: PASS
+- stakeFlowNoDuplicateRows: PASS
+- discoverRouteApiLoads: PASS
+- stakesRouteApiLoads: PASS
+- completedRouteApiLoads: PASS
+
+### Root Cause (Deployment Parity, Not New Code Regression)
+Hosted staging backend is pinned to an older commit (`ec603287`) and is not tracking current `origin/staging` (`43c38c52`), which includes the required wallet summary compatibility patch (`9175e819`).
+
+### Required Render Changes (Staging Only)
+Service: `fanclubz-backend-staging` in Render
+
+1. Render Dashboard -> `fanclubz-backend-staging` -> Settings -> Build & Deploy.
+2. Ensure **Branch** is `staging` (not `main`).
+3. Ensure auto-deploy on commit is enabled for that service.
+4. Trigger **Manual Deploy -> Deploy latest commit** for branch `staging`.
+5. Verify:
+   - `curl https://fanclubz-backend-staging.onrender.com/health` shows `gitSha` >= `9175e819`
+   - then re-run `/tmp/a4_validate.js`; expected `creatorTransferWorks: PASS`.
+
+No production service or production branch changes are required.
+
+## A5 Gate
+- **A5 remains blocked** until staging backend serves `9175e819` (or newer) and the A4 checklist is fully green.
