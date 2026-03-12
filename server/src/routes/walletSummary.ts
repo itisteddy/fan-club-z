@@ -3,6 +3,10 @@ import crypto from 'crypto';
 import { supabase } from '../config/database';
 import { VERSION } from '@fanclubz/shared';
 import { reconcileWallet } from '../services/walletReconciliation';
+import {
+  getWalletBalanceAccountsSummary,
+  getCreatorEarningsMilestoneSummary,
+} from '../services/walletBalanceAccounts';
 
 export const walletSummary = Router();
 
@@ -138,6 +142,23 @@ async function handleSummaryRequest(
     }
 
     const lastUpdated = cryptoUpdatedAt || demoUpdatedAt;
+    let balanceAccounts = {
+      demoCredits: demoAvailable,
+      creatorEarnings: 0,
+      stakeBalance: demoAvailable,
+      stakeReserved: demoReserved,
+    };
+    let creatorMilestones = {
+      cumulativeCredited: 0,
+      first10ZaurumEarned: false,
+      first10Label: 'First 10 Zaurum earned' as const,
+    };
+    try {
+      balanceAccounts = await getWalletBalanceAccountsSummary(userId);
+      creatorMilestones = await getCreatorEarningsMilestoneSummary(userId);
+    } catch (balanceErr) {
+      console.warn('[FCZ-PAY] explicit wallet balance accounts failed (non-fatal):', balanceErr);
+    }
 
     const response = {
       currency: 'USD' as const,
@@ -154,6 +175,21 @@ async function handleSummaryRequest(
       // Combined totals for UI convenience
       available_total: Number((demoAvailable + cryptoAvailable).toFixed(2)),
       reserved_total: Number((demoReserved + cryptoReserved).toFixed(2)),
+      // Explicit wallet account balances (A2/A4 compatibility)
+      balances: {
+        demoCredits: Number((balanceAccounts.demoCredits ?? demoAvailable).toFixed(2)),
+        creatorEarnings: Number((balanceAccounts.creatorEarnings ?? 0).toFixed(2)),
+        stakeBalance: Number((balanceAccounts.stakeBalance ?? demoAvailable).toFixed(2)),
+        creatorEarningsCumulative: Number((creatorMilestones.cumulativeCredited ?? 0).toFixed(2)),
+      },
+      demoCredits: Number((balanceAccounts.demoCredits ?? demoAvailable).toFixed(2)),
+      creatorEarnings: Number((balanceAccounts.creatorEarnings ?? 0).toFixed(2)),
+      stakeBalance: Number((balanceAccounts.stakeBalance ?? demoAvailable).toFixed(2)),
+      creatorEarningsCumulative: Number((creatorMilestones.cumulativeCredited ?? 0).toFixed(2)),
+      milestones: {
+        first10ZaurumEarned: creatorMilestones.first10ZaurumEarned,
+        first10Label: creatorMilestones.first10Label,
+      },
       // Metadata
       walletAddress: resolvedWalletAddress,
       lastUpdated,
@@ -187,6 +223,12 @@ async function handleSummaryRequest(
       escrowUSDC: 0, reservedUSDC: 0, availableToStakeUSDC: 0,
       totalDepositedUSDC: 0, totalWithdrawnUSDC: 0,
       available_total: 0, reserved_total: 0,
+      balances: { demoCredits: 0, creatorEarnings: 0, stakeBalance: 0, creatorEarningsCumulative: 0 },
+      demoCredits: 0,
+      creatorEarnings: 0,
+      stakeBalance: 0,
+      creatorEarningsCumulative: 0,
+      milestones: { first10ZaurumEarned: false, first10Label: 'First 10 Zaurum earned' },
       walletAddress: null,
       lastUpdated: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
