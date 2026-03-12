@@ -16,7 +16,7 @@ export type PredictionCardVM = {
   staked: number;
   returned: number;
   profitLoss: number;
-  railLabel?: 'Demo' | 'Crypto' | 'Fiat' | null;
+  railLabel?: 'Zaurum' | 'Crypto' | 'Fiat' | null;
   settledAtText?: string | null;
 };
 
@@ -159,11 +159,11 @@ export function buildPredictionCardVM(input: {
   }
 
   // Rail label (subtle chip)
-  let railLabel: 'Demo' | 'Crypto' | 'Fiat' | null = null;
+  let railLabel: 'Zaurum' | 'Crypto' | 'Fiat' | null = null;
   if (entries.length > 0) {
     const firstProvider = entries[0]?.provider;
     if (firstProvider === 'demo-wallet') {
-      railLabel = 'Demo';
+      railLabel = 'Zaurum';
     } else if (firstProvider && firstProvider.includes('crypto')) {
       railLabel = 'Crypto';
     } else if (firstProvider && (firstProvider.includes('fiat') || firstProvider.includes('paystack'))) {

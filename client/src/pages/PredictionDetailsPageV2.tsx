@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { Share2, BarChart3, Users, Calendar, DollarSign, ArrowLeft, Clock, User, Banknote, Flag } from 'lucide-react';
+import { Share2, BarChart3, Users, Calendar, ArrowLeft, Clock, User, Banknote, Flag } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { QK } from '@/lib/queryKeys';
 import { useAccount } from 'wagmi';
@@ -1055,11 +1055,16 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                     <div className="grid grid-cols-2 gap-4">
                       <div className="flex items-center space-x-3">
                         <div className="p-2 bg-emerald-100 rounded-lg">
-                          <DollarSign className="w-5 h-5 text-emerald-600" />
+                          <ZaurumMark size={16} />
                         </div>
                         <div>
                           <p className="text-sm text-gray-500">Total Volume</p>
-                          <p className="font-semibold text-gray-900">{formatCurrency(totalVolume, { compact: true })}</p>
+                          <p className="font-semibold text-gray-900">
+                            <span className="inline-flex items-center gap-1">
+                              <ZaurumMark size={12} />
+                              <span>{formatZaurumNumber(totalVolume, { compact: true })}</span>
+                            </span>
+                          </p>
                         </div>
                       </div>
                       <div className="flex items-center space-x-3">
@@ -1204,7 +1209,15 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                             });
                           }}
                         >
-                          {isClaiming ? 'Claiming…' : `Claim ${formatCurrency(merkle.amountUSD, { compact: false })}`}
+                          {isClaiming ? 'Claiming…' : (
+                            isZaurumStakeMode ? (
+                              <span className="inline-flex items-center gap-1">
+                                <span>Claim</span>
+                                <ZaurumMark size={12} />
+                                <span>{formatZaurumNumber(merkle.amountUSD)}</span>
+                              </span>
+                            ) : `Claim ${formatCurrency(merkle.amountUSD, { compact: false })}`
+                          )}
                         </button>
                       </div>
                     </div>
@@ -1311,7 +1324,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
 
                       <div>
                         <label htmlFor="stake-input" className="block text-sm font-medium text-gray-900 mb-2">
-                          Stake Amount ({isFiatMode ? 'NGN' : (isZaurumStakeMode ? 'Zaurum' : 'USD')})
+                          Stake Amount ({isFiatMode ? 'NGN' : (isZaurumStakeMode ? 'Zaurum' : 'USDC')})
                         </label>
                         <div className="relative">
                           {isFiatMode ? (
@@ -1321,7 +1334,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                               <ZaurumMark size={14} />
                             </span>
                           ) : (
-                            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-gray-400 pointer-events-none">
+                              USDC
+                            </span>
                           )}
                           <input
                             id="stake-input"
@@ -1382,7 +1397,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                                 <ZaurumMark size={10} />
                                 <span>{amount}</span>
                               </span>
-                            ) : `$${amount}`)}
+                            ) : `${amount} USDC`)}
                           </button>
                         ))}
                       </div>
@@ -1495,7 +1510,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
             : (need > 0
                 ? (isZaurumStakeMode
                     ? `Claim Zaurum (need ${formatZaurumAmount(need)})`
-                    : (isFiatMode ? `Deposit NGN (need ₦${need.toFixed(0)})` : `Add funds (need $${need.toFixed(2)})`))
+                    : (isFiatMode ? `Deposit NGN (need ₦${need.toFixed(0)})` : `Add funds (need ${need.toFixed(2)} USDC)`))
                 : `${t('betVerb')}: ${formatStakeModeAmount(amt)}`);
           const canBet = !!stakeAmount && amt > 0;
           return (

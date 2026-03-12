@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Edit3, User, Activity, DollarSign, TrendingUp, Target, Trophy, Upload, X, Mail, XCircle } from 'lucide-react';
+import { Edit3, User, Activity, TrendingUp, Target, Trophy, Upload, X, Mail, XCircle } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useAuthSession } from '../providers/AuthSessionProvider';
@@ -7,7 +7,7 @@ import { usePredictionStore } from '../store/predictionStore';
 import { openAuthGate } from '../auth/authGateAdapter';
 import UserAvatar from '../components/common/UserAvatar';
 import AppHeader from '../components/layout/AppHeader';
-import { formatLargeNumber, formatCurrency, formatPercentage, formatTimeAgo } from '@/lib/format';
+import { formatLargeNumber, formatPercentage, formatTimeAgo } from '@/lib/format';
 import { useUserActivity, ActivityItem as FeedActivityItem } from '@/hooks/useActivityFeed';
 import { t } from '@/lib/lexicon';
 import { ReferralCard, ReferralShareModal } from '@/components/referral';
@@ -19,6 +19,7 @@ import { ProfileAchievementsSection } from '@/components/profile/ProfileAchievem
 import { useReferral } from '@/hooks/useReferral';
 import { useUserAchievements } from '@/hooks/useUserAchievements';
 import { ApiError, apiClient } from '@/lib/apiClient';
+import ZaurumMark from '@/components/ui/ZaurumMark';
 
 interface ProfilePageV2Props {
   onNavigateBack?: () => void;
@@ -365,6 +366,13 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
   const profileAchievementsLoading = isOwnProfile ? achievementsLoading : publicProfileLoading;
   const profileAchievementsError = isOwnProfile ? achievementsError : (publicProfileError ? new Error(publicProfileError) : null);
 
+  const formatZaurumAmount = (value: number) => (
+    <span className="inline-flex items-center gap-1">
+      <ZaurumMark size={11} />
+      <span>{new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(Math.abs(value || 0))}</span>
+    </span>
+  );
+
   const getActivityDisplay = (item: FeedActivityItem) => {
     switch (item.type) {
       case 'entry.create':
@@ -374,7 +382,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           icon: <Target className="w-4 h-4 text-blue-600" />, 
           title: item.predictionTitle ? `Staked on ${item.predictionTitle}` : 'Stake placed',
           subtitle: item.data?.option_label ? `Option: ${item.data.option_label}` : '',
-          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
+          amount: item.data?.amount ? formatZaurumAmount(Number(item.data.amount)) : null,
           badge: 'placed',
           badgeColor: 'text-blue-600'
         };
@@ -391,40 +399,40 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
       case 'wallet.unlock':
         return {
           iconBg: 'bg-emerald-100',
-          icon: <DollarSign className="w-4 h-4 text-emerald-600" />,
+          icon: <ZaurumMark size={14} className="text-emerald-600" />,
           title: 'Escrow funds released',
           subtitle: item.data?.prediction_title ? item.data.prediction_title : '',
-          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
+          amount: item.data?.amount ? formatZaurumAmount(Number(item.data.amount)) : null,
           badge: 'wallet',
           badgeColor: 'text-emerald-600'
         };
       case 'wallet.payout':
         return {
           iconBg: 'bg-emerald-100',
-          icon: <DollarSign className="w-4 h-4 text-emerald-700" />,
+          icon: <ZaurumMark size={14} className="text-emerald-700" />,
           title: 'Settlement payout received',
           subtitle: item.data?.prediction_title ? item.data.prediction_title : '',
-          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
+          amount: item.data?.amount ? formatZaurumAmount(Number(item.data.amount)) : null,
           badge: 'payout',
           badgeColor: 'text-emerald-700'
         };
       case 'wallet.platform_fee':
         return {
           iconBg: 'bg-slate-100',
-          icon: <DollarSign className="w-4 h-4 text-slate-600" />,
+          icon: <ZaurumMark size={14} className="text-slate-600" />,
           title: 'Platform fee credited',
           subtitle: item.data?.prediction_title ? item.data.prediction_title : '',
-          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
+          amount: item.data?.amount ? formatZaurumAmount(Number(item.data.amount)) : null,
           badge: 'platform',
           badgeColor: 'text-slate-600'
         };
       case 'wallet.creator_fee':
         return {
           iconBg: 'bg-amber-100',
-          icon: <DollarSign className="w-4 h-4 text-amber-600" />,
+          icon: <ZaurumMark size={14} className="text-amber-600" />,
           title: 'Creator earnings received',
           subtitle: item.data?.prediction_title ? item.data.prediction_title : '',
-          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
+          amount: item.data?.amount ? formatZaurumAmount(Number(item.data.amount)) : null,
           badge: 'creator',
           badgeColor: 'text-amber-600'
         };
@@ -434,7 +442,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           icon: <XCircle className="w-4 h-4 text-red-600" />,
           title: 'Lost prediction',
           subtitle: item.predictionTitle ?? item.data?.prediction_title ?? '',
-          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
+          amount: item.data?.amount ? formatZaurumAmount(Number(item.data.amount)) : null,
           badge: 'loss',
           badgeColor: 'text-red-600'
         };
@@ -444,7 +452,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
           icon: <Activity className="w-4 h-4 text-gray-500" />,
           title: 'Wallet activity',
           subtitle: item.data?.channel ?? '',
-          amount: item.data?.amount ? formatCurrency(Number(item.data.amount), { compact: true }) : null,
+          amount: item.data?.amount ? formatZaurumAmount(Number(item.data.amount)) : null,
           badge: 'wallet',
           badgeColor: 'text-gray-500'
         };
@@ -697,7 +705,11 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
                         {profileCompletedCount} completed
                       </span>
                       <span className="text-gray-500">
-                        {formatCurrency(Math.abs(profileProfitLoss), { compact: true })} {profileProfitLoss >= 0 ? 'profit' : 'loss'}
+                        <span className="inline-flex items-center gap-1">
+                          <ZaurumMark size={11} />
+                          <span>{new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(Math.abs(profileProfitLoss || 0))}</span>
+                        </span>{' '}
+                        {profileProfitLoss >= 0 ? 'profit' : 'loss'}
                       </span>
                     </div>
                   </div>

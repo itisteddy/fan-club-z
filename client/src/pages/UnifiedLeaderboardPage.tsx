@@ -11,7 +11,7 @@ import Card, { CardHeader, CardContent } from '../components/ui/card/Card';
 import EmptyState from '../components/ui/empty/EmptyState';
 import { SkeletonCard } from '../components/ui/skeleton/Skeleton';
 import { getApiUrl } from '../config';
-import { formatNumberShort, formatUSDCompact, formatPercent, formatPercentage } from '@/lib/format';
+import { formatNumberShort, formatPercent, formatPercentage } from '@/lib/format';
 import { cn } from '../utils/cn';
 import { KeyboardNavigation, AriaUtils } from '../utils/accessibility';
 import { t } from '@/lib/lexicon';
@@ -196,7 +196,7 @@ const UnifiedLeaderboardPage: React.FC = () => {
       case 'profit':
         const profit = user.total_profit || 0;
         return {
-          primary: formatUSDCompact(profit),
+          primary: formatZaurumCompact(profit),
           color: profit > 0 ? 'text-emerald-600' : profit < 0 ? 'text-red-600' : 'text-gray-600'
         };
       case 'winrate':
@@ -586,3 +586,12 @@ const UnifiedLeaderboardPage: React.FC = () => {
 };
 
 export default UnifiedLeaderboardPage;
+  const formatZaurumCompact = (value: number) => {
+    const amount = Number(value || 0);
+    const sign = amount > 0 ? '+' : amount < 0 ? '−' : '';
+    const compact = new Intl.NumberFormat('en-US', {
+      notation: 'compact',
+      maximumFractionDigits: 2,
+    }).format(Math.abs(amount));
+    return `${sign}${compact} Z`;
+  };

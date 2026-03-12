@@ -25,15 +25,22 @@ import toast from 'react-hot-toast';
 import { useAccount } from 'wagmi';
 import { useMerkleClaim } from '@/hooks/useMerkleClaim';
 import { useClaimableClaims } from '@/hooks/useClaimableClaims';
-import { formatCurrency } from '@/lib/format';
 import { t } from '@/lib/lexicon';
 import { buildPredictionCardVM } from '@/lib/predictionCardVM';
 import { saveScrollPosition, restoreScrollPosition } from '../utils/scroll';
+import ZaurumMark from '@/components/ui/ZaurumMark';
 
 type TabKey = 'Active' | 'Created' | 'Completed';
 
 // Valid tabs for URL param validation
 const VALID_TABS: TabKey[] = ['Active', 'Created', 'Completed'];
+
+function formatZaurumNumber(value: number) {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(Math.abs(Number(value) || 0));
+}
 
 // Production BetsTab Component - Extracted from production bundle
 const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateToDiscover }) => {
@@ -644,11 +651,17 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         <div className="grid grid-cols-3 gap-4 mt-3">
           <div>
             <p className="text-xs text-emerald-600 mb-1">Staked</p>
-            <p className="font-semibold text-emerald-900">${prediction.stake.toLocaleString()}</p>
+            <p className="font-semibold text-emerald-900 inline-flex items-center gap-1">
+              <ZaurumMark size={11} />
+              <span>{formatZaurumNumber(prediction.stake)}</span>
+            </p>
           </div>
           <div>
             <p className="text-xs text-emerald-600 mb-1">Potential</p>
-            <p className="font-semibold text-emerald-900">${prediction.potentialReturn.toLocaleString()}</p>
+            <p className="font-semibold text-emerald-900 inline-flex items-center gap-1">
+              <ZaurumMark size={11} />
+              <span>{formatZaurumNumber(prediction.potentialReturn)}</span>
+            </p>
           </div>
           <div>
             <p className="text-xs text-emerald-600 mb-1">{t('odds')}</p>
@@ -748,7 +761,10 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         <div className="grid grid-cols-3 gap-4">
           <div>
             <p className="text-xs text-blue-600 mb-1">Total Pool</p>
-            <p className="font-semibold text-blue-900">${prediction.totalPool.toLocaleString()}</p>
+            <p className="font-semibold text-blue-900 inline-flex items-center gap-1">
+              <ZaurumMark size={11} />
+              <span>{formatZaurumNumber(prediction.totalPool)}</span>
+            </p>
           </div>
           <div>
             <p className="text-xs text-blue-600 mb-1">Participants</p>
@@ -917,8 +933,10 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
           </span>
           <div className="flex items-center gap-3">
             {isSettled && (
-              <span className={`text-lg font-bold ${isWin ? 'text-emerald-700' : 'text-red-700'}`}>
-                {vm.profitLoss >= 0 ? '+' : '−'}${Math.abs(vm.profitLoss).toLocaleString()}
+              <span className={`text-lg font-bold inline-flex items-center gap-1 ${isWin ? 'text-emerald-700' : 'text-red-700'}`}>
+                <span>{vm.profitLoss >= 0 ? '+' : '−'}</span>
+                <ZaurumMark size={12} />
+                <span>{formatZaurumNumber(vm.profitLoss)}</span>
               </span>
             )}
             {hasClaim && claimData && (
@@ -940,7 +958,13 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
                   }
                 }}
               >
-                {isClaiming ? 'Claiming…' : `Claim ${formatCurrency(claimData.amountUSD, { compact: true })}`}
+                {isClaiming ? 'Claiming…' : (
+                  <span className="inline-flex items-center gap-1">
+                    <span>Claim</span>
+                    <ZaurumMark size={11} />
+                    <span>{formatZaurumNumber(claimData.amountUSD)}</span>
+                  </span>
+                )}
               </button>
             )}
           </div>
@@ -953,7 +977,10 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
             <p className={`font-semibold ${
               archived ? 'text-gray-900' : (isSettled && hasEntryOutcome) ? (isWin ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
             }`}>
-              ${vm.staked.toLocaleString()}
+              <span className="inline-flex items-center gap-1">
+                <ZaurumMark size={11} />
+                <span>{formatZaurumNumber(vm.staked)}</span>
+              </span>
             </p>
           </div>
           <div>
@@ -962,7 +989,12 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
             }`}>Returned</p>
             <p className={`font-semibold ${
               archived ? 'text-gray-900' : (isSettled && hasEntryOutcome) ? (isWin ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
-            }`}>{isSettled ? `$${vm.returned.toLocaleString()}` : '—'}</p>
+            }`}>{isSettled ? (
+              <span className="inline-flex items-center gap-1">
+                <ZaurumMark size={11} />
+                <span>{formatZaurumNumber(vm.returned)}</span>
+              </span>
+            ) : '—'}</p>
           </div>
           <div>
             <p className={`text-xs mb-1 ${
@@ -970,7 +1002,13 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
             }`}>Profit/Loss</p>
             <p className={`font-semibold ${
               archived ? 'text-gray-900' : (isSettled && hasEntryOutcome) ? (isWin ? 'text-emerald-900' : 'text-red-900') : 'text-yellow-900'
-            }`}>{isSettled ? `${vm.profitLoss >= 0 ? '+' : '−'}$${Math.abs(vm.profitLoss).toLocaleString()}` : 'Pending'}</p>
+            }`}>{isSettled ? (
+              <span className="inline-flex items-center gap-1">
+                <span>{vm.profitLoss >= 0 ? '+' : '−'}</span>
+                <ZaurumMark size={11} />
+                <span>{formatZaurumNumber(vm.profitLoss)}</span>
+              </span>
+            ) : 'Pending'}</p>
           </div>
         </div>
       </div>

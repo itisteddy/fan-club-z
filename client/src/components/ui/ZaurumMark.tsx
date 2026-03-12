@@ -10,7 +10,7 @@ type ZaurumMarkProps = {
 export function ZaurumMark({ size = 12, className, title = 'Zaurum' }: ZaurumMarkProps) {
   return (
     <img
-      src="/brand/zaurum-mark-pack2.png"
+      src="/brand/zaurum.png"
       alt={title}
       width={size}
       height={size}

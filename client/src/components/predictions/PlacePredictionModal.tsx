@@ -582,7 +582,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                       <WalletIcon className="w-4 h-4" />
                       <div>
                         <p className="font-semibold">Available to stake</p>
-                        <p className="text-purple-700">${escrowAvailable.toFixed(2)} USDC</p>
+                        <p className="text-purple-700">{escrowAvailable.toFixed(2)} USDC</p>
                       </div>
                     </div>
                     <button
@@ -707,7 +707,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                     >
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Stake amount {isFiatMode ? '(NGN)' : (isDemoMode ? '(Zaurum)' : '(USD)')}
+                          Stake amount {isFiatMode ? '(NGN)' : (isDemoMode ? '(Zaurum)' : '(USDC)')}
                         </label>
                         <div className="relative">
                           <Input
@@ -720,7 +720,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                             max={isFiatMode ? displayBalance : (prediction.stake_max || displayBalance)}
                           />
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
-                            {isFiatMode ? '₦' : (isDemoMode ? <ZaurumMark size={12} /> : '$')}
+                            {isFiatMode ? '₦' : (isDemoMode ? <ZaurumMark size={12} /> : 'USDC')}
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
@@ -760,7 +760,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                                   <ZaurumMark size={10} />
                                   <span>{quickAmount}</span>
                                 </span>
-                              ) : `$${quickAmount}`)}
+                              ) : `${quickAmount} USDC`)}
                             </Button>
                           ))}
                         </div>

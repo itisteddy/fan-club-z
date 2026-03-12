@@ -89,19 +89,23 @@ export function getTxDeltaTone(args: {
  */
 export function formatTxAmount(args: {
   amount: number;
-  currencySymbol?: string;
   currency?: string;
   direction?: 'credit' | 'debit';
   type?: string;
   kind?: string;
   compact?: boolean;
 }): { tone: TxTone; display: string; absAmount: number } {
-  const { amount, currencySymbol = '$', compact = true, currency = 'USD' } = args;
+  const { amount, compact = true, currency = 'USD' } = args;
   const absAmount = Math.abs(amount);
   const tone = getTxDeltaTone({ amount, direction: args.direction, type: args.type, kind: args.kind });
 
-  // Format the absolute amount
-  const formatted = formatCurrency(absAmount, { compact, currency });
+  const currencyUpper = String(currency || 'USD').toUpperCase();
+  const formatted = currencyUpper === 'ZAURUM'
+    ? `${new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: compact ? 0 : 2,
+        maximumFractionDigits: compact ? 2 : 2,
+      }).format(absAmount)} Zaurum`
+    : formatCurrency(absAmount, { compact, currency });
 
   // Add sign based on tone
   let display: string;

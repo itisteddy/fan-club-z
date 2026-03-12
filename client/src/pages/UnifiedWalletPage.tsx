@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Plus, ArrowDownToLine, DollarSign, Lock, Wallet, RefreshCw, HelpCircle, X, ArrowRightLeft, Banknote, Gift } from 'lucide-react';
+import { Plus, ArrowDownToLine, Lock, Wallet, RefreshCw, HelpCircle, X, ArrowRightLeft, Banknote, Gift } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { QK } from '@/lib/queryKeys';
 import { useAccount, useDisconnect, useSwitchChain } from 'wagmi';
@@ -362,13 +362,13 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
       case 'bet_refund':
         return { Icon: RefreshCw, color: 'purple' };
       case 'payout':
-        return { Icon: DollarSign, color: 'green' };
+        return { Icon: Gift, color: 'green' };
       case 'creator_fee':
-        return { Icon: DollarSign, color: 'emerald' };
+        return { Icon: Gift, color: 'emerald' };
       case 'platform_fee':
-        return { Icon: DollarSign, color: 'indigo' };
+        return { Icon: Gift, color: 'indigo' };
       default:
-        return { Icon: DollarSign, color: 'gray' };
+        return { Icon: Gift, color: 'gray' };
     }
   };
 
@@ -405,7 +405,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
         <AppHeader title="Wallet" />
         <Page>
           <AuthRequiredState
-            icon={<DollarSign />}
+            icon={<ZaurumMark size={16} />}
             title="Sign in to view your wallet"
             description="Manage your funds and transaction history."
             intent="view_wallet"
@@ -578,7 +578,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                       label="Available"
                       value={formatZaurumAmount(demoSummary?.available ?? 0)}
                       variant="default"
-                      icon={<DollarSign className="w-4 h-4" />}
+                      icon={<ZaurumMark size={14} />}
                       subtitle="Ready to stake"
                     />
                     <StatCard
@@ -607,7 +607,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                     variant="currency"
                     currency="NGN"
                     compact
-                    icon={<DollarSign className="w-4 h-4" />}
+                    icon={<Banknote className="w-4 h-4" />}
                     subtitle="Ready to stake"
                   />
                   <StatCard
@@ -633,7 +633,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                     label="Available" 
                     value={availableUSD} 
                     variant="currency"
-                    icon={<DollarSign className="w-4 h-4" />}
+                    icon={<Wallet className="w-4 h-4" />}
                     subtitle="Ready to stake"
                   />
                   <StatCard 
@@ -647,30 +647,25 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
               )}
             </StatRow>
 
-            <div className="rounded-xl border border-amber-100 bg-amber-50 p-4">
-              <p className="text-xs text-amber-700">
-                Move creator earnings into your available balance to place more stakes.
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCreatorTransferAmount('');
-                    setShowCreatorTransfer(true);
-                  }}
-                  disabled={creatorEarningsBalance <= 0}
-                  className="inline-flex items-center justify-center rounded-lg bg-amber-200 px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Move to Balance
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowCreatorHistory(true)}
-                  className="inline-flex items-center justify-center rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100/40"
-                >
-                  View history
-                </button>
-              </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setCreatorTransferAmount('');
+                  setShowCreatorTransfer(true);
+                }}
+                disabled={creatorEarningsBalance <= 0}
+                className="inline-flex items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Move Creator Earnings to Balance
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCreatorHistory(true)}
+                className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Creator Earnings History
+              </button>
             </div>
 
             {/* Phase 7D: FX USD estimates (display-only) */}
@@ -788,22 +783,30 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                   <div className="space-y-2">
                     {activities.map((activity) => {
                       const { Icon, color } = getActivityIcon(activity.kind);
+                      const isInAppValueKind =
+                        activity.kind === 'bet_placed' ||
+                        activity.kind === 'lock' ||
+                        activity.kind === 'unlock' ||
+                        activity.kind === 'bet_refund' ||
+                        activity.kind === 'payout' ||
+                        activity.kind === 'creator_fee' ||
+                        activity.kind === 'platform_fee';
                       const tx = formatTxAmount({
                         amount: activity.amountUSD ?? 0,
                         kind: activity.kind,
                         compact: true,
-                        currency: (activity as any)?.meta?.currency || 'USD',
+                        currency: isDemoMode ? 'ZAURUM' : ((activity as any)?.meta?.currency || 'USD'),
                       });
-                      
-                      const demoDisplay = tx.display === '—'
-                        ? tx.display
-                        : `${tx.display.replace(/\$/g, '').replace(/\s*USD\b/gi, '').trim()} Zaurum`;
 
                       return (
                         <div key={activity.id} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
                           <div className="flex items-center space-x-3">
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center bg-${color}-100 text-${color}-600`}>
-                              <Icon className="w-4 h-4" />
+                              {isDemoMode && isInAppValueKind ? (
+                                <ZaurumMark size={14} />
+                              ) : (
+                                <Icon className="w-4 h-4" />
+                              )}
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-gray-900">
@@ -821,7 +824,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                           </div>
                           <div className="text-right">
                             <p className={`text-sm font-semibold ${toneClass(tx.tone)}`}>
-                              {isDemoMode ? demoDisplay : tx.display}
+                              {tx.display}
                             </p>
                             {activity.txHash && /^0x[a-fA-F0-9]{64}$/.test(String(activity.txHash)) && (
                               <a

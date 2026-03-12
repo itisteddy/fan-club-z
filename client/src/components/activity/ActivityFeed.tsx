@@ -3,16 +3,17 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { 
   MessageCircle, 
-  DollarSign, 
   Heart, 
   TrendingUp, 
   Clock, 
   User,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  Gift,
+  Target,
 } from 'lucide-react';
 import { useActivityFeed, ActivityItem } from '../../hooks/useActivityFeed';
-import { formatCurrency, formatTimeAgo } from '@/lib/format';
+import { formatTimeAgo } from '@/lib/format';
 import { t } from '@/lib/lexicon';
 
 interface ActivityFeedProps {
@@ -41,9 +42,17 @@ function ActivityItemComponent({ item }: ActivityItemComponentProps) {
     navigate(`/profile/${encodeURIComponent(actorId)}`);
   };
 
+  const formatZaurumCompact = (amount: number) => {
+    const numeric = Number(amount || 0);
+    return `${new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(numeric)} Zaurum`;
+  };
+
   const getActivityIcon = (type: string) => {
     if (type.startsWith('comment')) return MessageCircle;
-    if (type.startsWith('entry')) return DollarSign;
+    if (type.startsWith('entry')) return Target;
     if (type.startsWith('reaction')) return Heart;
     if (type.startsWith('prediction')) return TrendingUp;
     return Clock;
@@ -64,8 +73,8 @@ function ActivityItemComponent({ item }: ActivityItemComponentProps) {
       case 'entry.create':
         return {
           message: `${actorName} locked a ${t('bet')}`,
-          details: `${formatCurrency(data.amount, { compact: true })}${data.option_label ? ` on ${data.option_label}` : ''}`,
-          icon: DollarSign
+          details: `${formatZaurumCompact(Number(data.amount || 0))}${data.option_label ? ` on ${data.option_label}` : ''}`,
+          icon: Target
         };
       
       case 'reaction.like':
@@ -91,26 +100,26 @@ function ActivityItemComponent({ item }: ActivityItemComponentProps) {
       case 'wallet.unlock':
         return {
           message: 'Escrow funds released',
-          details: data.amount ? formatCurrency(data.amount, { compact: true }) : '',
-          icon: DollarSign,
+          details: data.amount ? formatZaurumCompact(Number(data.amount || 0)) : '',
+          icon: Gift,
         };
       case 'wallet.payout':
         return {
           message: 'Settlement payout received',
-          details: data.amount ? `${formatCurrency(data.amount, { compact: true })}${data.prediction_title ? ` · ${data.prediction_title}` : ''}` : (data.prediction_title ?? ''),
-          icon: DollarSign,
+          details: data.amount ? `${formatZaurumCompact(Number(data.amount || 0))}${data.prediction_title ? ` · ${data.prediction_title}` : ''}` : (data.prediction_title ?? ''),
+          icon: Gift,
         };
       case 'wallet.platform_fee':
         return {
           message: 'Platform fee credited',
-          details: data.amount ? formatCurrency(data.amount, { compact: true }) : '',
-          icon: DollarSign,
+          details: data.amount ? formatZaurumCompact(Number(data.amount || 0)) : '',
+          icon: Gift,
         };
       case 'wallet.creator_fee':
         return {
           message: 'Creator earnings received',
-          details: data.amount ? `${formatCurrency(data.amount, { compact: true })}${data.prediction_title ? ` · ${data.prediction_title}` : ''}` : (data.prediction_title ?? ''),
-          icon: DollarSign,
+          details: data.amount ? `${formatZaurumCompact(Number(data.amount || 0))}${data.prediction_title ? ` · ${data.prediction_title}` : ''}` : (data.prediction_title ?? ''),
+          icon: Gift,
         };
       default:
         return {

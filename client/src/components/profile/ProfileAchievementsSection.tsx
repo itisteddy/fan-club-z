@@ -121,7 +121,7 @@ function badgeHowToEarnBullets(badgeKey: string): string[] {
     case 'FIRST_COMMENT':
       return ['Post 100 comments on markets.', 'Comments must be successfully submitted.'];
     case 'FIRST_CREATOR_EARNING':
-      return ['Accumulate 10 creator earnings credits.', 'Creator fees must be credited to your creator earnings balance.'];
+      return ['Accumulate 10 Zaurum in creator earnings.', 'Creator fees must be credited to your creator earnings balance.'];
     default:
       return ['Complete the achievement activity shown above.'];
   }

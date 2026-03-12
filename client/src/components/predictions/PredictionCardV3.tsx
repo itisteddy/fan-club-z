@@ -5,6 +5,7 @@ import { formatNumberShort, formatDurationShort } from '@/lib/format';
 import CreatorByline from './CreatorByline';
 import { getCategoryLabel } from '@/lib/categoryUi';
 import { buildPredictionCanonicalPath } from '@/lib/predictionUrls';
+import ZaurumMark from '@/components/ui/ZaurumMark';
 
 type PredictionCardProps = {
   prediction: {
@@ -112,7 +113,10 @@ export default function PredictionCardV3({ prediction }: PredictionCardProps) {
 
             <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500">
               {typeof prediction.pool === 'number' && (
-                <span>${formatNumberShort(prediction.pool)} pool</span>
+                <span className="inline-flex items-center gap-1">
+                  <ZaurumMark size={11} />
+                  <span>{formatNumberShort(prediction.pool)} pool</span>
+                </span>
               )}
               {typeof prediction.players === 'number' && <span>{prediction.players} players</span>}
               {prediction.options?.length ? (
