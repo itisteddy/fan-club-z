@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useRe
 import { useSupabase } from './SupabaseProvider';
 import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { captureReturnTo } from '../lib/returnTo';
-import { auth as authHelpers, buildAuthRedirectUrl } from '@/lib/supabase';
+import { auth as authHelpers, buildAuthRedirectUrl, buildEmailRedirectUrl } from '@/lib/supabase';
 
 interface AuthSessionContextType {
   user: User | null;
@@ -147,9 +147,8 @@ export const AuthSessionProvider: React.FC<AuthSessionProviderProps> = ({ childr
         password,
         options: {
           data: userData,
-          // CRITICAL: email confirmation links must land on /auth/callback so the app can
-          // establish a session (AuthCallback handles magic-link + signup confirmations).
-          emailRedirectTo: buildAuthRedirectUrl('/predictions'),
+          // Email confirmation links should always resolve to a valid allowed web origin.
+          emailRedirectTo: buildEmailRedirectUrl(),
         },
       });
       return { error };
@@ -219,14 +218,12 @@ export const AuthSessionProvider: React.FC<AuthSessionProviderProps> = ({ childr
       captureReturnTo();
       
       // Build redirect URL with next parameter
-      const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-      const next = currentPath;
-      const emailRedirectTo = buildAuthRedirectUrl(next);
+      const stableEmailRedirectTo = buildEmailRedirectUrl();
         
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo,
+          emailRedirectTo: stableEmailRedirectTo,
         },
       });
       return { error };
@@ -245,6 +242,28 @@ export const AuthSessionProvider: React.FC<AuthSessionProviderProps> = ({ childr
       console.log('[auth] hydration', { hasSession: Boolean(session), userId: session?.user?.id || null });
     }
   }, [initialized, session]);
+
+  // When email confirmation/magic-link lands on web root with auth hash, clean the URL
+  // and route to a usable in-app entry point after session is available.
+  useEffect(() => {
+    if (!session?.access_token || typeof window === 'undefined') return;
+
+    const rawHash = window.location.hash || '';
+    if (!rawHash.includes('access_token=')) return;
+
+    const params = new URLSearchParams(rawHash.replace(/^#/, ''));
+    const flowType = (params.get('type') || '').toLowerCase();
+    if (!flowType || (flowType !== 'signup' && flowType !== 'magiclink' && flowType !== 'recovery')) {
+      return;
+    }
+
+    const cleanUrl = `${window.location.pathname}${window.location.search}`;
+    window.history.replaceState({}, '', cleanUrl);
+
+    if (window.location.pathname === '/' || window.location.pathname === '/auth') {
+      window.location.replace('/predictions');
+    }
+  }, [session?.access_token]);
 
   const value: AuthSessionContextType = {
     user,

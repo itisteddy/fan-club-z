@@ -35,12 +35,15 @@ const AuthCallback: React.FC = () => {
         const searchParams = new URLSearchParams(window.location.search);
         const hash = window.location.hash || '';
         const code = searchParams.get('code');
+        const tokenHash = searchParams.get('token_hash');
+        const otpType = searchParams.get('type');
         const errorParam = searchParams.get('error');
         const errorDescription = searchParams.get('error_description');
         const hasHashAccessToken = hash.includes('access_token=');
         const hasQueryAccessToken = Boolean(searchParams.get('access_token'));
         const isOAuthFlow = Boolean(code);
-        const isMagicLinkFlow = hasHashAccessToken || hasQueryAccessToken;
+        const isTokenHashFlow = Boolean(tokenHash);
+        const isMagicLinkFlow = hasHashAccessToken || hasQueryAccessToken || isTokenHashFlow;
 
         console.log('[auth:cb] mounted', { hasCode: Boolean(code), hasError: Boolean(errorParam) });
 
@@ -81,14 +84,28 @@ const AuthCallback: React.FC = () => {
         if (isMagicLinkFlow && !isOAuthFlow) {
           console.log('[auth:cb] Processing magic-link flow');
           try {
-            const { data: urlData, error: urlError } = await (supabase.auth as any).getSessionFromUrl({
-              storeSession: true,
-            });
-            if (urlError) {
-              throw urlError;
-            }
-            if (!urlData?.session) {
-              throw new Error('Magic link session not established');
+            if (isTokenHashFlow && tokenHash) {
+              const resolvedType = (otpType || 'signup') as any;
+              const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
+                token_hash: tokenHash,
+                type: resolvedType,
+              } as any);
+              if (verifyError) {
+                throw verifyError;
+              }
+              if (!verifyData?.session) {
+                throw new Error('Token hash verification succeeded but no session was created');
+              }
+            } else {
+              const { data: urlData, error: urlError } = await (supabase.auth as any).getSessionFromUrl({
+                storeSession: true,
+              });
+              if (urlError) {
+                throw urlError;
+              }
+              if (!urlData?.session) {
+                throw new Error('Magic link session not established');
+              }
             }
             console.log('[auth:cb] Magic-link session established');
           } catch (urlException: any) {

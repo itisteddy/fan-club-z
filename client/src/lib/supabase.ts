@@ -71,6 +71,11 @@ function getRedirectUrl(next?: string) {
 
 export const buildAuthRedirectUrl = (next?: string) => getRedirectUrl(next);
 
+// Email confirmation and magic-link flows currently land on the staging web root
+// when Supabase redirect allowlist strips path components. Keep this aligned to
+// avoid dead-end callbacks in staging/prod web.
+export const buildEmailRedirectUrl = (): string => getWebOrigin();
+
 const getAuthStorage = () => {
   if (typeof window === 'undefined') return undefined;
   try {
