@@ -15,7 +15,7 @@ import { openAuthGate } from '../auth/authGateAdapter';
 import { useAuthSession } from '../providers/AuthSessionProvider';
 import { useUnifiedBalance } from '../hooks/useUnifiedBalance';
 import { useFundingModeStore } from '../store/fundingModeStore';
-import { isCryptoEnabledForClient } from '@/lib/cryptoFeatureFlags';
+import { isCryptoEnabledForClient, isZaurumModeEnabled } from '@/lib/cryptoFeatureFlags';
 import { getApiUrl } from '../config';
 import DepositUSDCModal from '../components/wallet/DepositUSDCModal';
 import { usePaystackStatus, useFiatSummary } from '@/hooks/useFiatWallet';
@@ -47,6 +47,7 @@ import { getCategoryLabel } from '@/lib/categoryUi';
 import { isFeatureEnabled } from '@/config/featureFlags';
 import { getPayoutPreview, getPreOddsMultiple } from '@fanclubz/shared';
 import { ReportContentModal } from '@/components/ugc/ReportContentModal';
+import ZaurumMark from '@/components/ui/ZaurumMark';
 import { buildPredictionCanonicalPath, buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
 import { normalizeCommentTargetId } from '@/lib/commentDeepLink';
 import { suppressScrollToTop, unsuppressScrollToTop } from '@/utils/scroll';
@@ -253,6 +254,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   // Funding mode (crypto vs demo) — demo is UI-gated by env via fundingModeStore
   const { mode, setMode, isDemoEnabled, isFiatEnabled, setFiatEnabled } = useFundingModeStore();
   const capabilities = Runtime.capabilities;
+  const zaurumModeEnabled = isZaurumModeEnabled();
   const showDemo = isDemoEnabled && capabilities.allowDemo;
   // Gate fiat/crypto modes by capabilities
   const effectiveFiatEnabled = isFiatEnabled && capabilities.allowFiat;
@@ -278,7 +280,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       setDemoLoading(true);
       const resp = await fetch(`${getApiUrl()}/api/demo-wallet/summary?userId=${currentUser.id}`);
       const json = await resp.json().catch(() => null);
-      if (!resp.ok) throw new Error(json?.message || 'Failed to load demo wallet');
+      if (!resp.ok) throw new Error(json?.message || 'Failed to load Zaurum wallet');
       setDemoSummary(json?.summary ?? null);
     } catch (e: any) {
       console.error('[DEMO] summary error', e);
@@ -298,7 +300,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
         body: JSON.stringify({ userId: currentUser.id }),
       });
       const json = await resp.json().catch(() => null);
-      if (!resp.ok) throw new Error(json?.message || 'Failed to faucet demo credits');
+      if (!resp.ok) throw new Error(json?.message || 'Failed to claim Zaurum');
       setDemoSummary(json?.summary ?? null);
       // Persist cooldown timestamp for consistent UX across the app
       if (json?.nextEligibleAt) {
@@ -316,7 +318,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       }
     } catch (e: any) {
       console.error('[DEMO] faucet error', e);
-      showErrorToast(e?.message || 'Failed to get demo credits');
+      showErrorToast(e?.message || 'Failed to get Zaurum');
     } finally {
       setDemoLoading(false);
     }
@@ -450,6 +452,37 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
 
   // User balance - source depends on funding mode
   const userBalance = isAuthenticated ? displayAvailable : 0;
+  const formatZaurumAmount = useCallback((amount: number, opts?: { compact?: boolean; showSign?: boolean }) => {
+    const numericAmount = Number.isFinite(amount) ? amount : 0;
+    const compact = opts?.compact ?? false;
+    const absValue = Math.abs(numericAmount);
+    const formatted = new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: compact ? 0 : 2,
+      maximumFractionDigits: compact ? 2 : 2,
+    }).format(absValue);
+    const sign = opts?.showSign ? (numericAmount > 0 ? '+' : numericAmount < 0 ? '-' : '') : (numericAmount < 0 ? '-' : '');
+    return `${sign}${formatted} Zaurum`;
+  }, []);
+  const formatStakeModeAmount = useCallback((amount: number, opts?: { compact?: boolean; showSign?: boolean }) => {
+    if (isFiatMode) {
+      return formatCurrency(amount, { compact: opts?.compact ?? false, currency: 'NGN', showSign: opts?.showSign ?? false });
+    }
+    if (isDemoMode) {
+      return formatZaurumAmount(amount, opts);
+    }
+    return formatCurrency(amount, { compact: opts?.compact ?? false, currency: 'USD', showSign: opts?.showSign ?? false });
+  }, [formatZaurumAmount, isDemoMode, isFiatMode]);
+  const formatZaurumNumber = useCallback((amount: number, opts?: { compact?: boolean; showSign?: boolean }) => {
+    const numericAmount = Number.isFinite(amount) ? amount : 0;
+    const compact = opts?.compact ?? false;
+    const absValue = Math.abs(numericAmount);
+    const formatted = new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: compact ? 0 : 2,
+      maximumFractionDigits: compact ? 2 : 2,
+    }).format(absValue);
+    const sign = opts?.showSign ? (numericAmount > 0 ? '+' : numericAmount < 0 ? '-' : '') : (numericAmount < 0 ? '-' : '');
+    return `${sign}${formatted}`;
+  }, []);
 
   // Log balance for debugging
   useEffect(() => {
@@ -1194,7 +1227,14 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                   {justPlaced && (
                     <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between">
                       <div className="text-sm text-emerald-800 font-medium">
-                        You staked {isFiatMode ? `₦${justPlaced.amount.toFixed(0)}` : `$${justPlaced.amount.toFixed(2)}`} on “{justPlaced.optionLabel}”.
+                        You staked {isDemoMode ? (
+                          <span className="inline-flex items-center gap-1 align-middle">
+                            <ZaurumMark size={12} />
+                            <span>{formatZaurumNumber(justPlaced.amount)}</span>
+                          </span>
+                        ) : (
+                          formatStakeModeAmount(justPlaced.amount)
+                        )} on “{justPlaced.optionLabel}”.
                       </div>
                       <button
                         type="button"
@@ -1210,7 +1250,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                   {isAuthenticated && selectedOptionId && (
                     <div className="bg-white rounded-2xl p-4 shadow-sm border space-y-3">
                       {/* Funding mode toggle (Demo/Fiat gated by feature flags + store-safe mode) */}
-                      {(showDemo || effectiveFiatEnabled || effectiveCryptoEnabled) && (
+                      {!zaurumModeEnabled && (showDemo || effectiveFiatEnabled || effectiveCryptoEnabled) && (
                         <div className="inline-flex rounded-lg bg-gray-100 p-1 flex-wrap gap-1">
                           {effectiveCryptoEnabled && (
                             <button
@@ -1231,7 +1271,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                               }`}
                               type="button"
                             >
-                              Demo Credits
+                              Zaurum
                             </button>
                           )}
                           {effectiveFiatEnabled && (
@@ -1250,7 +1290,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
 
                       <div>
                         <label htmlFor="stake-input" className="block text-sm font-medium text-gray-900 mb-2">
-                          Stake Amount ({isFiatMode ? 'NGN' : 'USD'})
+                          Stake Amount ({isFiatMode ? 'NGN' : (isDemoMode ? 'Zaurum' : 'USD')})
                         </label>
                         <div className="relative">
                           {isFiatMode ? (
@@ -1274,7 +1314,16 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                       
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-600">
-                          Available: {(isFiatMode ? loadingFiat : (isDemoMode ? demoLoading : isLoadingBalance)) ? 'Loading…' : formatCurrency(userBalance, { compact: true, currency: isFiatMode ? 'NGN' : 'USD' })}
+                          Available: {(isFiatMode ? loadingFiat : (isDemoMode ? demoLoading : isLoadingBalance))
+                            ? 'Loading…'
+                            : (isDemoMode
+                                ? (
+                                  <span className="inline-flex items-center gap-1 align-middle">
+                                    <ZaurumMark size={11} />
+                                    <span>{formatZaurumNumber(userBalance, { compact: true })}</span>
+                                  </span>
+                                )
+                                : formatStakeModeAmount(userBalance, { compact: true }))}
                         </span>
                         {stakeAmount && !(isFiatMode ? loadingFiat : (isDemoMode ? demoLoading : isLoadingBalance)) && parseFloat(stakeAmount) > userBalance && (
                           <span className="text-red-600 font-medium">Insufficient balance</span>
@@ -1289,7 +1338,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                             disabled={demoLoading}
                             className="w-full rounded-xl border bg-gray-50 px-4 py-2.5 text-sm font-semibold hover:bg-gray-100 transition-colors disabled:opacity-50"
                           >
-                            Get Demo Credits
+                            Claim Zaurum
                           </button>
                         </div>
                       )}
@@ -1303,7 +1352,12 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                             disabled={isPlacingBet || amount > userBalance}
                             className="rounded-lg border bg-gray-50 px-3 py-2 text-sm font-medium hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                           >
-                            {isFiatMode ? `₦${amount.toLocaleString()}` : `$${amount}`}
+                            {isFiatMode ? `₦${amount.toLocaleString()}` : (isDemoMode ? (
+                              <span className="inline-flex items-center gap-1">
+                                <ZaurumMark size={10} />
+                                <span>{amount}</span>
+                              </span>
+                            ) : `$${amount}`)}
                           </button>
                         ))}
                       </div>
@@ -1316,22 +1370,39 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                             <div>
                               <p className="text-gray-600">Stake</p>
                               <p className="font-semibold text-gray-900">
-                                {formatCurrency(numStake, { compact: false, currency: isFiatMode ? 'NGN' : 'USD' })}
+                                {isDemoMode ? (
+                                  <span className="inline-flex items-center gap-1">
+                                    <ZaurumMark size={12} />
+                                    <span>{formatZaurumNumber(numStake)}</span>
+                                  </span>
+                                ) : formatStakeModeAmount(numStake)}
                               </p>
                             </div>
                             <div>
                               <p className="text-gray-600">Estimated return</p>
                               <p className="font-semibold text-emerald-700">
-                                {poolPreview
-                                  ? formatCurrency(poolPreview.expectedReturn, { compact: false, currency: isFiatMode ? 'NGN' : 'USD' })
-                                  : formatCurrency(expectedReturn, { compact: false, currency: isFiatMode ? 'NGN' : 'USD' })}
+                                {isDemoMode ? (
+                                  <span className="inline-flex items-center gap-1">
+                                    <ZaurumMark size={12} />
+                                    <span>{formatZaurumNumber(poolPreview ? poolPreview.expectedReturn : expectedReturn)}</span>
+                                  </span>
+                                ) : (
+                                  poolPreview
+                                    ? formatStakeModeAmount(poolPreview.expectedReturn)
+                                    : formatStakeModeAmount(expectedReturn)
+                                )}
                               </p>
                             </div>
                           </div>
                           <div className="mt-3 pt-3 border-t border-emerald-200/60">
                             <p className="text-gray-600 text-sm">Potential profit</p>
                             <p className={`font-semibold ${potentialProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                              {formatCurrency(potentialProfit, { compact: false, currency: isFiatMode ? 'NGN' : 'USD', showSign: true })}
+                              {isDemoMode ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <ZaurumMark size={12} />
+                                  <span>{formatZaurumNumber(potentialProfit, { showSign: true })}</span>
+                                </span>
+                              ) : formatStakeModeAmount(potentialProfit, { showSign: true })}
                             </p>
                             {poolPreview && (
                               <>
@@ -1398,9 +1469,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
             ? t('betVerb')
             : (need > 0
                 ? (isDemoMode
-                    ? `Get demo credits (need $${need.toFixed(2)})`
+                    ? `Claim Zaurum (need ${formatZaurumAmount(need)})`
                     : (isFiatMode ? `Deposit NGN (need ₦${need.toFixed(0)})` : `Add funds (need $${need.toFixed(2)})`))
-                : `${t('betVerb')}: ${isFiatMode ? `₦${amt.toFixed(0)}` : `$${amt.toFixed(2)}`}`);
+                : `${t('betVerb')}: ${formatStakeModeAmount(amt)}`);
           const canBet = !!stakeAmount && amt > 0;
           return (
             <StickyBetBar

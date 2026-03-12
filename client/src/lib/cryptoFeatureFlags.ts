@@ -14,8 +14,11 @@ export interface CryptoFeatureFlags {
 }
 
 export function isZaurumModeEnabled(): boolean {
-  const raw = String(import.meta.env.VITE_ZAURUM_MODE || '').toLowerCase().trim();
-  return raw === '1' || raw === 'true' || raw === 'zaurum';
+  const walletMode = String(import.meta.env.VITE_FCZ_WALLET_MODE || '').toLowerCase().trim();
+  if (walletMode === 'zaurum_only') return true;
+  // Backward-compat fallback while old environments migrate.
+  const legacy = String(import.meta.env.VITE_ZAURUM_MODE || '').toLowerCase().trim();
+  return legacy === '1' || legacy === 'true' || legacy === 'zaurum';
 }
 
 /**

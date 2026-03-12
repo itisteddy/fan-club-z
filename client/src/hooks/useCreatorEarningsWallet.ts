@@ -69,8 +69,17 @@ export function useTransferCreatorEarnings() {
     mutationFn: async (amount: number): Promise<{
       balances: { demoCredits: number; creatorEarnings: number; stakeBalance: number };
       transactionId?: string | null;
+      applied?: boolean;
+      milestones?: {
+        first10ZaurumEarned: boolean;
+        first10Label: string;
+      };
     }> => {
       const headers = await getAuthHeaders();
+      const requestId =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
       const response = await fetch(`${getApiUrl()}/api/wallet/transfer-creator-earnings`, {
         method: 'POST',
         headers: {
@@ -78,7 +87,7 @@ export function useTransferCreatorEarnings() {
           Accept: 'application/json',
           ...headers,
         },
-        body: JSON.stringify({ amount }),
+        body: JSON.stringify({ amount, requestId }),
       });
 
       const body = await response.json().catch(() => ({}));
@@ -93,6 +102,13 @@ export function useTransferCreatorEarnings() {
           stakeBalance: Number(body.balances?.stakeBalance ?? 0),
         },
         transactionId: body.transactionId ?? null,
+        applied: Boolean(body.applied ?? true),
+        milestones: body.milestones
+          ? {
+              first10ZaurumEarned: Boolean(body.milestones.first10ZaurumEarned),
+              first10Label: String(body.milestones.first10Label || 'First 10 Zaurum earned'),
+            }
+          : undefined,
       };
     },
   });

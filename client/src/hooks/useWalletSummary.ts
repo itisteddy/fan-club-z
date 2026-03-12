@@ -14,6 +14,12 @@ export type WalletSummary = {
     demoCredits: number;
     creatorEarnings: number;
     stakeBalance: number;
+    creatorEarningsCumulative?: number;
+  };
+  creatorEarningsCumulative?: number;
+  milestones?: {
+    first10ZaurumEarned: boolean;
+    first10Label: string;
   };
   availableToStakeUSDC: number;
   reservedUSDC: number;
@@ -108,12 +114,20 @@ export function useWalletSummary(userId?: string, options: WalletSummaryOptions 
           demoCredits: Number(summary.demoCredits ?? summary.balances?.demoCredits ?? 0),
           creatorEarnings: Number(summary.creatorEarnings ?? summary.balances?.creatorEarnings ?? 0),
           stakeBalance: Number(summary.stakeBalance ?? summary.balances?.stakeBalance ?? summary.available ?? 0),
+          creatorEarningsCumulative: Number(summary.creatorEarningsCumulative ?? summary.balances?.creatorEarningsCumulative ?? 0),
         },
         availableToStakeUSDC: Number(summary.availableToStakeUSDC ?? summary.available ?? 0),
         reservedUSDC: Number(summary.reservedUSDC ?? summary.reserved ?? 0),
         escrowUSDC: Number(summary.escrowUSDC ?? summary.total ?? 0),
         totalDeposited: Number(summary.totalDeposited ?? summary.totalDepositedUSDC ?? 0),
         totalWithdrawn: Number(summary.totalWithdrawn ?? summary.totalWithdrawnUSDC ?? 0),
+        creatorEarningsCumulative: Number(summary.creatorEarningsCumulative ?? summary.balances?.creatorEarningsCumulative ?? 0),
+        milestones: summary.milestones
+          ? {
+              first10ZaurumEarned: Boolean(summary.milestones.first10ZaurumEarned),
+              first10Label: String(summary.milestones.first10Label || 'First 10 Zaurum earned'),
+            }
+          : undefined,
         updatedAt: summary.updatedAt ?? summary.updated_at ?? new Date().toISOString(),
         walletAddress: summary.walletAddress ?? summary.wallet_address ?? null,
       };

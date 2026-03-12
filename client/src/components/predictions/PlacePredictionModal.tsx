@@ -4,6 +4,7 @@ import { Zap, X, Wallet as WalletIcon, ArrowUpRight, Banknote } from 'lucide-rea
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card, CardContent } from '../ui/card';
+import ZaurumMark from '../ui/ZaurumMark';
 import { Prediction } from '../../store/predictionStore';
 import { usePredictionStore } from '../../store/predictionStore';
 import { useAuthStore } from '../../store/authStore';
@@ -24,7 +25,7 @@ import { getApiUrl } from '@/config';
 import { setCooldown } from '@/lib/cooldowns';
 import { usePaystackStatus, useFiatSummary } from '@/hooks/useFiatWallet';
 import { getPayoutPreview, getPreOddsMultiple } from '@fanclubz/shared';
-import { isCryptoEnabledForClient } from '@/lib/cryptoFeatureFlags';
+import { isCryptoEnabledForClient, isZaurumModeEnabled } from '@/lib/cryptoFeatureFlags';
 import { apiClient } from '@/lib/apiClient';
 
 interface PlacePredictionModalProps {
@@ -36,6 +37,17 @@ interface PlacePredictionModalProps {
 type StakeQuoteView = {
   current: { userStake: number; oddsOrPrice: number; estPayout: number };
   after: { userStake: number; oddsOrPrice: number; estPayout: number };
+  disclaimer?: string;
+};
+
+type StakeQuoteWire = {
+  current?: { userStake?: number; oddsOrPrice?: number; estPayout?: number };
+  after?: { userStake?: number; oddsOrPrice?: number; estPayout?: number };
+  currentPosition?: number;
+  currentEstimatedPayout?: number;
+  additionalStakeAmount?: number;
+  projectedPositionAfterStake?: number;
+  projectedEstimatedPayoutAfterStake?: number;
   disclaimer?: string;
 };
 
@@ -73,6 +85,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
   const walletAddressLower = address?.toLowerCase() ?? null;
   const { wallet: walletUSDC, available: escrowAvailable, refetch: refetchBalances } = useUnifiedBalance();
   const { mode, setMode, isDemoEnabled, isFiatEnabled, setFiatEnabled } = useFundingModeStore();
+  const zaurumModeEnabled = isZaurumModeEnabled();
   
   // Fiat-related hooks
   const { data: paystackStatus } = usePaystackStatus();
@@ -96,6 +109,12 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
       import.meta.env.VITE_FCZ_BASE_ENABLE === '1');
   const isCryptoMode = !isDemoMode && !isFiatMode && cryptoAllowed;
 
+  useEffect(() => {
+    if (mode === 'crypto' && !cryptoAllowed) {
+      setMode(isDemoEnabled ? 'demo' : isFiatEnabled ? 'fiat' : 'demo');
+    }
+  }, [cryptoAllowed, isDemoEnabled, isFiatEnabled, mode, setMode]);
+
   const [demoSummary, setDemoSummary] = useState<null | { available: number; reserved: number; total: number }>(null);
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoError, setDemoError] = useState<string | null>(null);
@@ -107,10 +126,10 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
       setDemoError(null);
       const resp = await fetch(`${getApiUrl()}/api/demo-wallet/summary?userId=${user.id}`);
       const json = await resp.json().catch(() => null);
-      if (!resp.ok) throw new Error(json?.message || 'Failed to load demo credits');
+      if (!resp.ok) throw new Error(json?.message || 'Failed to load Zaurum balance');
       setDemoSummary(json?.summary ?? null);
     } catch (e: any) {
-      setDemoError(e?.message || 'Failed to load demo credits');
+      setDemoError(e?.message || 'Failed to load Zaurum balance');
       setDemoSummary(null);
     } finally {
       setDemoLoading(false);
@@ -128,18 +147,18 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
         body: JSON.stringify({ userId: user.id }),
       });
       const json = await resp.json().catch(() => null);
-      if (!resp.ok) throw new Error(json?.message || 'Failed to get demo credits');
+      if (!resp.ok) throw new Error(json?.message || 'Failed to claim Zaurum');
       setDemoSummary(json?.summary ?? null);
       if (json?.nextEligibleAt) {
         setCooldown(`fcz_demo_credits_next_at:${user.id}`, String(json.nextEligibleAt));
       }
       if (json?.alreadyGranted) {
-        toast.error('Demo credits not yet available. Please try again later.');
+        toast.error('Zaurum not yet available. Please try again later.');
       } else {
-        toast.success('Demo credits added.');
+        toast.success('Zaurum added.');
       }
     } catch (e: any) {
-      setDemoError(e?.message || 'Failed to get demo credits');
+      setDemoError(e?.message || 'Failed to claim Zaurum');
     } finally {
       setDemoLoading(false);
     }
@@ -193,6 +212,45 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
   // Display balance depends on mode
   const displayBalance = isFiatMode ? fiatAvailable : (isCryptoMode ? escrowAvailable : demoAvailable);
   const displayCurrency: 'USD' | 'NGN' = isFiatMode ? 'NGN' : 'USD';
+  const formatZaurumAmount = (amount: number, opts?: { compact?: boolean; showSign?: boolean }) => {
+    const numericAmount = Number.isFinite(amount) ? amount : 0;
+    const compact = opts?.compact ?? false;
+    const absValue = Math.abs(numericAmount);
+    const formatted = new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: compact ? 0 : 2,
+      maximumFractionDigits: compact ? 2 : 2,
+    }).format(absValue);
+    const sign = opts?.showSign ? (numericAmount > 0 ? '+' : numericAmount < 0 ? '-' : '') : (numericAmount < 0 ? '-' : '');
+    return `${sign}${formatted} Zaurum`;
+  };
+  const formatZaurumNumber = (amount: number, opts?: { compact?: boolean; showSign?: boolean }) => {
+    const numericAmount = Number.isFinite(amount) ? amount : 0;
+    const compact = opts?.compact ?? false;
+    const absValue = Math.abs(numericAmount);
+    const formatted = new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: compact ? 0 : 2,
+      maximumFractionDigits: compact ? 2 : 2,
+    }).format(absValue);
+    const sign = opts?.showSign ? (numericAmount > 0 ? '+' : numericAmount < 0 ? '-' : '') : (numericAmount < 0 ? '-' : '');
+    return `${sign}${formatted}`;
+  };
+  const formatModeAmount = (amount: number, opts?: { compact?: boolean; showSign?: boolean }) => {
+    if (isFiatMode) {
+      const absFormatted = formatCurrency(Math.abs(amount), 'NGN');
+      if (opts?.showSign) {
+        const sign = amount > 0 ? '+' : amount < 0 ? '-' : '';
+        return `${sign}${absFormatted}`;
+      }
+      return amount < 0 ? `-${absFormatted}` : absFormatted;
+    }
+    if (isDemoMode) return formatZaurumAmount(amount, opts);
+    const absFormatted = formatCurrency(Math.abs(amount), displayCurrency);
+    if (opts?.showSign) {
+      const sign = amount > 0 ? '+' : amount < 0 ? '-' : '';
+      return `${sign}${absFormatted}`;
+    }
+    return amount < 0 ? `-${absFormatted}` : absFormatted;
+  };
   const needsDeposit = isCryptoMode && numAmount > escrowAvailable;
   const insufficientBalance = numAmount > displayBalance;
 
@@ -215,11 +273,27 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
         const resp = await apiClient.get(
           `predictions/${encodeURIComponent(prediction.id)}/quote?outcomeId=${encodeURIComponent(selectedOptionId)}&amount=${encodeURIComponent(String(numAmount))}&mode=${modeParam}`
         );
-        const quote = resp?.quote;
+        const quote = (resp?.quote || null) as StakeQuoteWire | null;
         if (!cancelled && quote) {
+          const currentStake = Number(quote.current?.userStake ?? quote.currentPosition ?? 0);
+          const currentPayout = Number(quote.current?.estPayout ?? quote.currentEstimatedPayout ?? 0);
+          const currentOdds = Number(quote.current?.oddsOrPrice ?? 0);
+          const afterStake = Number(quote.after?.userStake ?? quote.projectedPositionAfterStake ?? (currentStake + Number(quote.additionalStakeAmount || 0)));
+          const afterPayout = Number(
+            quote.after?.estPayout ?? quote.projectedEstimatedPayoutAfterStake ?? 0
+          );
+          const afterOdds = Number(quote.after?.oddsOrPrice ?? 0);
           setStakeQuote({
-            current: quote.current,
-            after: quote.after,
+            current: {
+              userStake: currentStake,
+              estPayout: currentPayout,
+              oddsOrPrice: Number.isFinite(currentOdds) ? currentOdds : 0,
+            },
+            after: {
+              userStake: afterStake,
+              estPayout: afterPayout,
+              oddsOrPrice: Number.isFinite(afterOdds) ? afterOdds : 0,
+            },
             disclaimer: quote.disclaimer,
           });
         }
@@ -276,12 +350,12 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
     // For fiat, we may have different min/max rules (skip USD-based checks)
     if (!isFiatMode) {
       if (numAmount < prediction.stake_min) {
-        toast.error(`Minimum stake is ${formatCurrency(prediction.stake_min)}. Please increase your amount.`);
+        toast.error(`Minimum stake is ${formatModeAmount(prediction.stake_min)}. Please increase your amount.`);
         return;
       }
 
       if (prediction.stake_max && numAmount > prediction.stake_max) {
-        toast.error(`Maximum stake is ${formatCurrency(prediction.stake_max)}. Please reduce your amount.`);
+        toast.error(`Maximum stake is ${formatModeAmount(prediction.stake_max)}. Please reduce your amount.`);
         return;
       }
     } else {
@@ -299,13 +373,13 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
     }
 
     if (needsDeposit) {
-      toast.error(`Insufficient escrow balance. You have ${formatCurrency(escrowAvailable)}, but tried to stake ${formatCurrency(numAmount)}.`);
+      toast.error(`Insufficient escrow balance. You have ${formatModeAmount(escrowAvailable)}, but tried to stake ${formatModeAmount(numAmount)}.`);
       setShowDepositModal(true);
       return;
     }
 
     if (isDemoMode && numAmount > demoAvailable) {
-      toast.error(`Insufficient balance. You have ${formatCurrency(demoAvailable)} available, but tried to stake ${formatCurrency(numAmount)}.`);
+      toast.error(`Insufficient balance. You have ${formatModeAmount(demoAvailable)} available, but tried to stake ${formatModeAmount(numAmount)}.`);
       return;
     }
 
@@ -341,10 +415,10 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
         const submitQuote = result?.quoteUsed?.after;
         if (submitQuote && typeof submitQuote.estPayout === 'number') {
           toast.success(
-            `Prediction placed. Position: ${formatCurrency(Number(submitQuote.userStake || 0))} • Est payout: ${formatCurrency(Number(submitQuote.estPayout || 0))}`
+            `Prediction placed. Position: ${formatModeAmount(Number(submitQuote.userStake || 0))} • Est payout: ${formatModeAmount(Number(submitQuote.estPayout || 0))}`
           );
         } else {
-          toast.success(`Prediction placed successfully! You staked ${formatCurrency(numAmount)} on ${selectedOption?.label}.`);
+          toast.success(`Prediction placed successfully! You staked ${formatModeAmount(numAmount)} on ${selectedOption?.label}.`);
         }
       }
       
@@ -425,16 +499,18 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
 
               {/* Scrollable Body */}
               <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                {(isDemoEnabled || isFiatEnabled) && (
+                {!zaurumModeEnabled && (isDemoEnabled || isFiatEnabled) && (
                   <div className="inline-flex rounded-lg bg-gray-100 p-1 flex-wrap gap-1">
-                    <button
-                      onClick={() => setMode('crypto')}
-                      className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                        isCryptoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                      }`}
-                    >
-                      Crypto (USDC)
-                    </button>
+                    {cryptoAllowed && (
+                      <button
+                        onClick={() => setMode('crypto')}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                          isCryptoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        Crypto (USDC)
+                      </button>
+                    )}
                     {isDemoEnabled && (
                       <button
                         onClick={() => setMode('demo')}
@@ -442,7 +518,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                           isDemoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
                         }`}
                       >
-                        Demo Credits
+                        Zaurum
                       </button>
                     )}
                     {isFiatEnabled && (
@@ -462,7 +538,15 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                 <div className="space-y-2">
                   <h3 className="font-semibold text-gray-900 text-base">{prediction.title}</h3>
                   <div className="flex items-center gap-4 text-sm text-gray-500">
-                    <span>{formatCurrency(totalPool)} Total volume</span>
+                    <span>
+                      {isDemoMode ? (
+                        <span className="inline-flex items-center gap-1">
+                          <ZaurumMark size={11} />
+                          <span>{formatZaurumNumber(totalPool, { compact: true })}</span>
+                        </span>
+                      ) : formatModeAmount(totalPool)}{' '}
+                      Total volume
+                    </span>
                     <span>•</span>
                     <span>{prediction.participant_count || 0} Players</span>
                     <span>•</span>
@@ -509,8 +593,11 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                     <div className="flex items-center gap-2">
                       <WalletIcon className="w-4 h-4" />
                       <div>
-                        <p className="font-semibold">Demo available</p>
-                        <p className="text-emerald-700">${demoAvailable.toFixed(2)}</p>
+                        <p className="font-semibold">Zaurum available</p>
+                        <p className="text-emerald-700 inline-flex items-center gap-1">
+                          <ZaurumMark size={12} />
+                          <span>{formatZaurumNumber(demoAvailable)}</span>
+                        </p>
                       </div>
                     </div>
                     <button
@@ -519,7 +606,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                       disabled={!user?.id || demoLoading}
                     >
                       <ArrowUpRight className="w-3 h-3" />
-                      Get credits
+                      Claim Zaurum
                     </button>
                   </div>
                 )}
@@ -604,7 +691,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                     >
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Stake amount {isFiatMode ? '(NGN)' : '(USD)'}
+                          Stake amount {isFiatMode ? '(NGN)' : (isDemoMode ? '(Zaurum)' : '(USD)')}
                         </label>
                         <div className="relative">
                           <Input
@@ -617,11 +704,19 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                             max={isFiatMode ? displayBalance : (prediction.stake_max || displayBalance)}
                           />
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
-                            {isFiatMode ? '₦' : '$'}
+                            {isFiatMode ? '₦' : (isDemoMode ? <ZaurumMark size={12} /> : '$')}
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
-                          <span>Balance: {formatCurrency(displayBalance, displayCurrency)}</span>
+                          <span>
+                            Balance:{' '}
+                            {isDemoMode ? (
+                              <span className="inline-flex items-center gap-1">
+                                <ZaurumMark size={11} />
+                                <span>{formatZaurumNumber(displayBalance, { compact: true })}</span>
+                              </span>
+                            ) : formatModeAmount(displayBalance, { compact: true })}
+                          </span>
                           <button
                             onClick={() => setAmount(Math.floor(displayBalance).toString())}
                             className="text-blue-600 hover:text-blue-700 font-medium"
@@ -644,7 +739,12 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                               disabled={quickAmount > displayBalance}
                               className="text-sm h-10"
                             >
-                              {isFiatMode ? `₦${quickAmount.toLocaleString()}` : `$${quickAmount}`}
+                              {isFiatMode ? `₦${quickAmount.toLocaleString()}` : (isDemoMode ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <ZaurumMark size={10} />
+                                  <span>{quickAmount}</span>
+                                </span>
+                              ) : `$${quickAmount}`)}
                             </Button>
                           ))}
                         </div>
@@ -663,7 +763,15 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                                     {quoteLoading
                                       ? 'Loading...'
                                       : stakeQuote
-                                        ? `${formatCurrency(Number(stakeQuote.current.userStake || 0))} • ${formatCurrency(Number(stakeQuote.current.estPayout || 0))} est`
+                                        ? (isDemoMode ? (
+                                            <span className="inline-flex items-center gap-1">
+                                              <ZaurumMark size={11} />
+                                              <span>{formatZaurumNumber(Number(stakeQuote.current.userStake || 0))}</span>
+                                              <span>•</span>
+                                              <ZaurumMark size={11} />
+                                              <span>{formatZaurumNumber(Number(stakeQuote.current.estPayout || 0))} est</span>
+                                            </span>
+                                          ) : `${formatModeAmount(Number(stakeQuote.current.userStake || 0))} • ${formatModeAmount(Number(stakeQuote.current.estPayout || 0))} est`)
                                         : '—'}
                                   </span>
                                 </div>
@@ -673,7 +781,15 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                                     {quoteLoading
                                       ? 'Loading...'
                                       : stakeQuote
-                                        ? `${formatCurrency(Number(stakeQuote.after.userStake || 0))} • ${formatCurrency(Number(stakeQuote.after.estPayout || 0))} est`
+                                        ? (isDemoMode ? (
+                                            <span className="inline-flex items-center gap-1">
+                                              <ZaurumMark size={11} />
+                                              <span>{formatZaurumNumber(Number(stakeQuote.after.userStake || 0))}</span>
+                                              <span>•</span>
+                                              <ZaurumMark size={11} />
+                                              <span>{formatZaurumNumber(Number(stakeQuote.after.estPayout || 0))} est</span>
+                                            </span>
+                                          ) : `${formatModeAmount(Number(stakeQuote.after.userStake || 0))} • ${formatModeAmount(Number(stakeQuote.after.estPayout || 0))} est`)
                                         : '—'}
                                   </span>
                                 </div>
@@ -705,14 +821,14 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                                   <div>
                                     <div className="text-xs text-gray-500">Stake</div>
                                     <div className="font-semibold text-gray-900">
-                                      {formatCurrency(numAmount, displayCurrency)}
+                                      {formatModeAmount(numAmount)}
                                     </div>
                                   </div>
                                   <div className="text-right">
                                     <div className="text-xs text-gray-500">Estimated return</div>
                                     <div className="font-semibold text-teal-600">
                                       {poolPreview
-                                        ? formatCurrency(poolPreview.expectedReturn, displayCurrency)
+                                        ? formatModeAmount(poolPreview.expectedReturn)
                                         : '—'}
                                     </div>
                                   </div>
@@ -724,7 +840,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                                     potentialProfit >= 0 ? "text-teal-600" : "text-red-600"
                                   )}>
                                     {poolPreview
-                                      ? `${potentialProfit >= 0 ? '+' : ''}${formatCurrency(potentialProfit, displayCurrency)}`
+                                      ? formatModeAmount(potentialProfit, { showSign: true })
                                       : '—'}
                                   </span>
                                 </div>
@@ -776,7 +892,14 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
                   ) : (
                     <div className="flex items-center gap-2">
                       <Zap size={16} />
-                      <span>Place Prediction ({formatCurrency(numAmount, displayCurrency)})</span>
+                      <span>
+                        Place Prediction ({isDemoMode ? (
+                          <span className="inline-flex items-center gap-1">
+                            <ZaurumMark size={11} />
+                            <span>{formatZaurumNumber(numAmount)}</span>
+                          </span>
+                        ) : formatModeAmount(numAmount)})
+                      </span>
                     </div>
                   )}
                 </Button>
