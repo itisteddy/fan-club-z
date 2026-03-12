@@ -11,6 +11,12 @@ export type BalanceAccountsSummary = {
   stakeReserved: number;
 };
 
+export type CreatorEarningsMilestoneSummary = {
+  cumulativeCredited: number;
+  first10ZaurumEarned: boolean;
+  first10Label: 'First 10 Zaurum earned';
+};
+
 export class WalletBalanceError extends Error {
   code: string;
   status: number;
@@ -59,6 +65,34 @@ export async function getWalletBalanceAccountsSummary(userId: string): Promise<B
     creatorEarnings: round8(toNumber(usd?.creator_earnings_balance)),
     stakeBalance: round8(toNumber(usd?.stake_balance ?? usd?.available_balance)),
     stakeReserved: round8(toNumber(usd?.reserved_balance)),
+  };
+}
+
+export async function getCreatorEarningsMilestoneSummary(
+  userId: string
+): Promise<CreatorEarningsMilestoneSummary> {
+  const { data, error } = await supabase
+    .from('wallet_transactions')
+    .select('amount, direction, channel, to_account, status')
+    .eq('user_id', userId)
+    .in('status', ['completed', 'success'])
+    .or('channel.eq.creator_fee,to_account.eq.CREATOR_EARNINGS');
+
+  if (error) {
+    throw error;
+  }
+
+  const cumulativeCredited = round8(
+    (data || []).reduce((sum: number, row: any) => {
+      if ((row?.direction || '').toLowerCase() !== 'credit') return sum;
+      return sum + toNumber(row?.amount);
+    }, 0)
+  );
+
+  return {
+    cumulativeCredited,
+    first10ZaurumEarned: cumulativeCredited >= 10,
+    first10Label: 'First 10 Zaurum earned',
   };
 }
 
@@ -174,7 +208,7 @@ export async function creditCreatorEarnings(args: {
   }
 }
 
-export async function transferCreatorEarningsToStake(args: { userId: string; amount: number }) {
+export async function transferCreatorEarningsToStake(args: { userId: string; amount: number; requestId?: string }) {
   const amount = round8(args.amount);
   if (!(amount > 0)) {
     throw new WalletBalanceError('INVALID_AMOUNT', 'Amount must be greater than zero');
@@ -253,6 +287,7 @@ export async function transferCreatorEarningsToStake(args: { userId: string; amo
     await client.query('COMMIT');
 
     return {
+      applied: true,
       transactionId: txInsert.rows[0]?.id || null,
       balances: {
         creatorEarnings: nextCreatorEarnings,
@@ -305,4 +340,3 @@ export async function listCreatorEarningsHistory(userId: string, limit = 20) {
     };
   });
 }
-
