@@ -155,3 +155,36 @@ Final pass/fail table on current live staging:
 
 Gate status:
 - **A5 remains blocked** (deployment-state only).
+
+## Final Close Check (Post TS2305 Fix + Staging Redeploy, 2026-03-12)
+Build blocker fix deployed on staging branch:
+- commit: `480d8418`
+- fix scope: `server/src/services/walletBalanceAccounts.ts` (restore/export milestone helper used by wallet summary)
+
+Live staging backend identity after redeploy:
+- `GET /health` -> `gitSha = 480d84187cca0f1285d28b2ac2d7e497887f3f21`
+- `GET /debug/config` -> `gitSha = 480d84187cca0f1285d28b2ac2d7e497887f3f21`
+
+Exact A4 validation rerun:
+- runner: `/tmp/a4_validate.js`
+- artifact: `/tmp/a4_staging_validation.json`
+- run timestamp: `2026-03-12T03:44:25.706Z`
+
+Final pass/fail table:
+- walletSummaryLoads: PASS
+- walletSummaryHasContextValues: PASS
+- creatorTransferWorks: PASS
+- stakeFlowBet1: PASS
+- stakeFlowBet2: PASS
+- stakeFlowQuoteCurrentAfterSubmit: PASS
+- stakeFlowNoDuplicateRows: PASS
+- discoverRouteApiLoads: PASS
+- stakesRouteApiLoads: PASS
+- completedRouteApiLoads: PASS
+
+Notes:
+- The validation script's `backendSha` field is stale/hardcoded (`ec603287`) and does not reflect live deploy identity.
+- Deploy identity for gate decisions is taken from `/health` and `/debug/config`.
+
+Gate status:
+- **A5 unblocked** (A4 validation is fully green on live staging).
