@@ -112,5 +112,35 @@ Notes:
 - Deletion remains soft-delete/anonymization (no hard-delete FK risk introduced).
 - Deleted accounts still support restore flow via existing `POST /api/v2/users/me/restore` path.
 
+## Final Live Staging Validation (Post-Deploy)
+
+Live backend SHA used:
+- `/health.gitSha`: `fbc193387bed337322d92cbc104dce791b35058e`
+
+Disposable user for final rerun:
+- email: `c1.final.1773346621954@gmail.com`
+- created via staging-only fallback (`POST /auth/v1/admin/users`, `email_confirm: true`)
+
+Final authenticated E2E results on live SHA:
+1. Sign in disposable user -> `200`
+2. Delete account (`POST /api/v2/users/me/delete`) -> `200`
+   - `x-request-id`: `0c758b54-0581-4784-b205-f649583c6f5e`
+   - body includes structured data:
+     - `accountStatus: "deleted"`
+     - `alreadyDeleted: false`
+     - `signedOutRequired: true`
+3. Old session blocked for normal use:
+   - `GET /api/v2/users/me/terms-accepted` -> `409 ACCOUNT_DELETED`
+   - `x-request-id`: `6404e527-0f44-4993-beef-eaaa36566631`
+4. Relogin behavior:
+   - Password relogin -> `200` (token issued)
+   - First gated app call -> `409 ACCOUNT_DELETED`
+   - `x-request-id`: `facc886e-0a62-4bba-aa54-345d730afbc7`
+5. Repeated delete behavior:
+   - `POST /api/v2/users/me/delete` -> `200` (idempotent success on deleted account)
+   - `x-request-id`: `11f6ac2b-1cd5-41c2-9450-163ac969d2cc`
+   - body includes:
+     - `alreadyDeleted: true`
+
 ## C1 Status
-- **Open (deployment parity pending)**: authenticated staging E2E passed on current live backend, and C1 patch is pushed, but staging backend SHA must advance to `fbc19338` (or newer) and be rerun once to close formally.
+- **CLOSED**: deployment parity achieved and final authenticated staging E2E passed on live SHA.
