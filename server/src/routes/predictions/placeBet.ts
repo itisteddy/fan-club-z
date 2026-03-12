@@ -27,7 +27,19 @@ function requestId(): string {
 
 async function safeRecomputePrediction(predictionId: string, fallbackPrediction: any) {
   try {
-    return await recomputePredictionState(predictionId);
+    const recomputed = await recomputePredictionState(predictionId);
+    // Staging schema can miss prediction_options.updated_at; keep option pools/odds synced anyway.
+    await syncPredictionOptionStateFallback(predictionId);
+    const { data: refreshedPrediction } = await supabase
+      .from('predictions')
+      .select(`
+        *,
+        creator:users!creator_id(id, username, full_name, avatar_url, is_verified),
+        options:prediction_options!prediction_options_prediction_id_fkey(*)
+      `)
+      .eq('id', predictionId)
+      .single();
+    return { prediction: refreshedPrediction || recomputed.prediction || fallbackPrediction };
   } catch (recomputeError) {
     console.warn('[FCZ-BET] recompute failed (non-fatal):', recomputeError);
     return { prediction: fallbackPrediction };
@@ -40,7 +52,81 @@ function isMissingColumnError(err: any): boolean {
   return code === '42703' || code === 'PGRST204' || msg.includes('does not exist') || msg.includes('could not find the column');
 }
 
-async function recoverAndTopUpEntry(args: {
+export async function syncPredictionOptionStateFallback(predictionId: string) {
+  const nowIso = new Date().toISOString();
+  const { data: optionRows, error: optionError } = await supabase
+    .from('prediction_options')
+    .select('id')
+    .eq('prediction_id', predictionId);
+  if (optionError || !optionRows?.length) return;
+
+  const { data: activeEntries, error: entryError } = await supabase
+    .from('prediction_entries')
+    .select('option_id, amount')
+    .eq('prediction_id', predictionId)
+    .eq('status', 'active');
+  if (entryError) return;
+
+  const totals = new Map<string, number>();
+  for (const row of activeEntries || []) {
+    const optionId = String((row as any).option_id || '');
+    if (!optionId) continue;
+    totals.set(optionId, (totals.get(optionId) || 0) + Number((row as any).amount || 0));
+  }
+
+  const optionIds = optionRows.map((row: any) => String(row.id));
+  const optionCount = optionIds.length > 0 ? optionIds.length : 2;
+  const poolTotal = Array.from(totals.values()).reduce((sum, n) => sum + n, 0);
+
+  for (const optionId of optionIds) {
+    const stake = totals.get(optionId) || 0;
+    const newOdds = stake > 0 && poolTotal > 0 ? Math.max(1.01, poolTotal / stake) : optionCount;
+    const patchWithUpdatedAt: any = { total_staked: stake, current_odds: newOdds, updated_at: nowIso };
+    let { error } = await supabase
+      .from('prediction_options')
+      .update(patchWithUpdatedAt)
+      .eq('id', optionId);
+
+    if (error && isMissingColumnError(error)) {
+      const { updated_at: _ignored, ...patchWithoutUpdatedAt } = patchWithUpdatedAt;
+      ({ error } = await supabase
+        .from('prediction_options')
+        .update(patchWithoutUpdatedAt)
+        .eq('id', optionId));
+    }
+
+    if (error) {
+      console.warn('[FCZ-BET] syncPredictionOptionStateFallback option update failed:', {
+        predictionId,
+        optionId,
+        error,
+      });
+    }
+  }
+}
+
+export async function insertWalletTransactionCompat(payload: Record<string, any>) {
+  let currentPayload: Record<string, any> = { ...payload };
+
+  for (let i = 0; i < 2; i += 1) {
+    const { error } = await supabase.from('wallet_transactions').insert(currentPayload as any);
+    if (!error) return { error: null as any };
+    if (!isMissingColumnError(error)) return { error };
+
+    const message = String(error.message || '').toLowerCase();
+    if (message.includes('entry_id') && 'entry_id' in currentPayload) {
+      const { entry_id: _dropped, ...withoutEntryId } = currentPayload;
+      currentPayload = withoutEntryId;
+      continue;
+    }
+
+    return { error };
+  }
+
+  return { error: null as any };
+}
+
+export async function recoverAndTopUpEntry(args: {
   entryId?: string | null;
   userId: string;
   predictionId: string;
@@ -59,16 +145,26 @@ async function recoverAndTopUpEntry(args: {
       .maybeSingle();
     if (!current?.id) return { data: null, error: null as any };
     const nextAmount = Number(current.amount || 0) + amountDelta;
-    const updated = await supabase
+    const patchWithUpdatedAt: any = {
+      amount: nextAmount,
+      potential_payout: estPayout ?? nextAmount,
+      updated_at: new Date().toISOString(),
+    };
+    let updated = await supabase
       .from('prediction_entries')
-      .update({
-        amount: nextAmount,
-        potential_payout: estPayout ?? nextAmount,
-        updated_at: new Date().toISOString(),
-      } as any)
+      .update(patchWithUpdatedAt as any)
       .eq('id', targetId)
       .select('*')
       .maybeSingle();
+    if (updated.error && isMissingColumnError(updated.error)) {
+      const { updated_at: _ignored, ...patchWithoutUpdatedAt } = patchWithUpdatedAt;
+      updated = await supabase
+        .from('prediction_entries')
+        .update(patchWithoutUpdatedAt as any)
+        .eq('id', targetId)
+        .select('*')
+        .maybeSingle();
+    }
     return { data: updated.data as any, error: updated.error as any };
   };
 
@@ -558,7 +654,7 @@ async function handlePlaceBet(req: any, res: any) {
       await supabase.from('escrow_locks').update({ state: 'consumed', status: 'consumed' } as any).eq('id', lockId);
 
       // Record wallet transaction (idempotent)
-      await supabase.from('wallet_transactions').insert({
+      await insertWalletTransactionCompat({
         user_id: userId,
         direction: 'debit',
         type: 'bet_lock',
@@ -851,7 +947,7 @@ async function handlePlaceBet(req: any, res: any) {
       await supabase.from('escrow_locks').update({ state: 'consumed', status: 'consumed' } as any).eq('id', lockId);
 
       // Record wallet transaction (fiat bet lock debit)
-      await supabase.from('wallet_transactions').insert({
+      await insertWalletTransactionCompat({
         user_id: userId,
         direction: 'debit',
         // wallet_transactions.type has CHECK constraints; use allowed type
@@ -1330,11 +1426,18 @@ async function handlePlaceBet(req: any, res: any) {
 
     console.log('[FCZ-BET] Inserting wallet_transaction:', JSON.stringify(walletTxPayload));
 
-    const { data: walletTxData, error: walletTxError } = await supabase
-      .from('wallet_transactions')
-      .insert(walletTxPayload)
-      .select('id')
-      .single();
+    const { error: walletTxError } = await insertWalletTransactionCompat(walletTxPayload);
+    let walletTxData: any = null;
+    if (!walletTxError) {
+      const lookup = await supabase
+        .from('wallet_transactions')
+        .select('id')
+        .eq('external_ref', walletTxPayload.external_ref)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      walletTxData = lookup.data;
+    }
 
     if (walletTxError) {
       console.error('[FCZ-BET] ❌ Failed to record wallet transaction:', walletTxError);
