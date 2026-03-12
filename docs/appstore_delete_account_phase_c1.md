@@ -98,6 +98,7 @@ Exact E2E steps/results:
 Notes:
 - Current staging backend SHA at test time: `b04e48b4d33e26a7c93f28f0b8e394147e92cb30`.
 - The idempotent `200` on repeated delete will be active once this C1 backend patch is deployed (route now uses `requireSupabaseAuthAllowDeleted`).
+- C1 code commit pushed to staging branch: `fbc19338`. Staging backend had not yet advanced to this SHA during the validation window above.
 
 ### UI state validation
 - Implemented in `ProfilePageV2`:
@@ -110,3 +111,6 @@ Notes:
 ## Production-safety Notes
 - Deletion remains soft-delete/anonymization (no hard-delete FK risk introduced).
 - Deleted accounts still support restore flow via existing `POST /api/v2/users/me/restore` path.
+
+## C1 Status
+- **Open (deployment parity pending)**: authenticated staging E2E passed on current live backend, and C1 patch is pushed, but staging backend SHA must advance to `fbc19338` (or newer) and be rerun once to close formally.
