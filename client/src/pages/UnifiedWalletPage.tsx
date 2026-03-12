@@ -34,7 +34,7 @@ import { FiatWithdrawalSheet } from '@/components/wallet/FiatWithdrawalSheet';
 import { Runtime } from '@/config/runtime';
 import { policy as storeSafePolicy } from '@/lib/storeSafePolicy';
 import { resolveWalletVariant } from '@/config/walletVariant';
-import { isCryptoEnabledForClient } from '@/lib/cryptoFeatureFlags';
+import { isCryptoEnabledForClient, isZaurumModeEnabled } from '@/lib/cryptoFeatureFlags';
 
 interface WalletPageProps {
   onNavigateBack?: () => void;
@@ -49,6 +49,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   // Auto-switch to Base Sepolia when connected on wrong network (crypto rail only)
   useAutoNetworkSwitch();
   const { mode, setMode, isDemoEnabled, isFiatEnabled, setFiatEnabled } = useFundingModeStore();
+  const zaurumModeEnabled = useMemo(() => isZaurumModeEnabled(), []);
   const walletVariant = useMemo(() => resolveWalletVariant(), []);
   const capabilities = Runtime.capabilities;
   // Runtime wallet variant is authoritative (iOS native must default to demo).
@@ -59,6 +60,12 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   const isDemoMode = showDemo && mode === 'demo';
   const isFiatMode = effectiveFiatEnabled && mode === 'fiat';
   const isCryptoMode = effectiveCryptoEnabled && !isDemoMode && !isFiatMode;
+
+  useEffect(() => {
+    if (mode === 'crypto' && !effectiveCryptoEnabled) {
+      setMode(showDemo ? 'demo' : effectiveFiatEnabled ? 'fiat' : 'demo');
+    }
+  }, [effectiveCryptoEnabled, effectiveFiatEnabled, mode, setMode, showDemo]);
 
   // Phase 7B: In store-safe mode, force demo mode to avoid dead ends.
   useEffect(() => {
@@ -259,6 +266,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   const demoCreditsBalance = Number(walletSummary?.demoCredits ?? walletSummary?.balances?.demoCredits ?? demoSummary?.available ?? 0);
   const creatorEarningsBalance = Number(walletSummary?.creatorEarnings ?? walletSummary?.balances?.creatorEarnings ?? 0);
   const stakeBalance = Number(walletSummary?.stakeBalance ?? walletSummary?.balances?.stakeBalance ?? walletSummary?.available ?? 0);
+  const stakeLockedBalance = Number(walletSummary?.reserved ?? walletSummary?.reservedUSDC ?? demoSummary?.reserved ?? 0);
   const parsedTransferAmount = Number.parseFloat(creatorTransferAmount || '0');
   const hasValidTransferAmount = Number.isFinite(parsedTransferAmount) && parsedTransferAmount > 0 && parsedTransferAmount <= creatorEarningsBalance;
   const previewCreatorAfter = hasValidTransferAmount ? Math.max(0, creatorEarningsBalance - parsedTransferAmount) : creatorEarningsBalance;
@@ -416,7 +424,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
       
       <Page>
         {/* Funding mode toggle: show only when we have multiple supported modes */}
-        {((showDemo && effectiveCryptoEnabled) || (effectiveFiatEnabled && (showDemo || effectiveCryptoEnabled))) && (
+        {!zaurumModeEnabled && ((showDemo && effectiveCryptoEnabled) || (effectiveFiatEnabled && (showDemo || effectiveCryptoEnabled))) && (
           <div className="mb-4">
             <div className="inline-flex rounded-lg bg-gray-100 p-1 flex-wrap gap-1">
               {effectiveCryptoEnabled && (
@@ -511,29 +519,55 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
             {/* Balance Overview */}
             <StatRow>
               {isDemoMode ? (
-                <>
-                  <StatCard
-                    label="Demo Credits"
-                    value={demoSummary?.total ?? 0}
-                    variant="currency"
-                    icon={<Wallet className="w-4 h-4" />}
-                    subtitle="Total"
-                  />
-                  <StatCard
-                    label="Available"
-                    value={demoSummary?.available ?? 0}
-                    variant="currency"
-                    icon={<DollarSign className="w-4 h-4" />}
-                    subtitle="Ready to stake"
-                  />
-                  <StatCard
-                    label="In Bets"
-                    value={demoSummary?.reserved ?? 0}
-                    variant="currency"
-                    icon={<Lock className="w-4 h-4" />}
-                    subtitle="Currently locked"
-                  />
-                </>
+                zaurumModeEnabled ? (
+                  <>
+                    <StatCard
+                      label="Available"
+                      value={stakeBalance}
+                      variant="currency"
+                      icon={<DollarSign className="w-4 h-4" />}
+                      subtitle="Ready to stake"
+                    />
+                    <StatCard
+                      label="Locked"
+                      value={stakeLockedBalance}
+                      variant="currency"
+                      icon={<Lock className="w-4 h-4" />}
+                      subtitle="Currently locked"
+                    />
+                    <StatCard
+                      label="Creator Earnings"
+                      value={creatorEarningsBalance}
+                      variant="currency"
+                      icon={<Gift className="w-4 h-4" />}
+                      subtitle="Ready to move"
+                    />
+                  </>
+                ) : (
+                  <>
+                    <StatCard
+                      label="Demo Credits"
+                      value={demoSummary?.total ?? 0}
+                      variant="currency"
+                      icon={<Wallet className="w-4 h-4" />}
+                      subtitle="Total"
+                    />
+                    <StatCard
+                      label="Available"
+                      value={demoSummary?.available ?? 0}
+                      variant="currency"
+                      icon={<DollarSign className="w-4 h-4" />}
+                      subtitle="Ready to stake"
+                    />
+                    <StatCard
+                      label="In Bets"
+                      value={demoSummary?.reserved ?? 0}
+                      variant="currency"
+                      icon={<Lock className="w-4 h-4" />}
+                      subtitle="Currently locked"
+                    />
+                  </>
+                )
               ) : isFiatMode ? (
                 <>
                   <StatCard

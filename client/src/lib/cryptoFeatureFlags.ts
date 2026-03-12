@@ -13,6 +13,11 @@ export interface CryptoFeatureFlags {
   clientAllowed: boolean;
 }
 
+export function isZaurumModeEnabled(): boolean {
+  const raw = String(import.meta.env.VITE_ZAURUM_MODE || '').toLowerCase().trim();
+  return raw === '1' || raw === 'true' || raw === 'zaurum';
+}
+
 /**
  * Build-time + runtime flags for crypto. Use for UI gating only; server enforces.
  * - enabled: CRYPTO_MODE is testnet or legacy VITE_FCZ_BASE_BETS is on, or web with no explicit 'off'
@@ -20,6 +25,10 @@ export interface CryptoFeatureFlags {
  * - clientAllowed: true only when client is web (not ios/android)
  */
 export function getCryptoFeatureFlags(): CryptoFeatureFlags {
+  if (isZaurumModeEnabled()) {
+    return { enabled: false, mode: 'off', clientAllowed: false };
+  }
+
   const client = getFczClientHeader();
   const clientAllowed = client === 'web';
   
