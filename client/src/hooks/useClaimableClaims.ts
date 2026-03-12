@@ -8,13 +8,15 @@ export type ClaimableItem = {
   title: string;
   amountUnits: string;
   amountUSD: number;
+  amountZaurum?: number;
   proof: `0x${string}`[];
   merkleRoot: `0x${string}`;
 };
 
 export function useClaimableClaims(address?: string, limit = 20) {
+  const addressLower = (address || '').toLowerCase();
   return useQuery({
-    queryKey: ['wallet', 'claimable', (address || '').toLowerCase(), limit],
+    queryKey: ['claimable-claims', addressLower, limit],
     enabled: Boolean(address),
     queryFn: async (): Promise<ClaimableItem[]> => {
       const params = new URLSearchParams({ address: String(address), limit: String(limit) });
@@ -30,7 +32,19 @@ export function useClaimableClaims(address?: string, limit = 20) {
         throw new Error(j?.message || 'Failed to load claimable items');
       }
       const json = await r.json();
-      const items = ((json?.data?.claims ?? []) as ClaimableItem[]);
+      const rawItems = (json?.data?.claims ?? []) as any[];
+      const items: ClaimableItem[] = rawItems.map((item) => {
+        const normalizedAmount = Number(item.amountZaurum ?? item.amountUSD ?? 0);
+        return {
+          predictionId: String(item.predictionId || item.prediction_id || ''),
+          title: String(item.title || ''),
+          amountUnits: String(item.amountUnits || item.amount_units || '0'),
+          amountUSD: normalizedAmount,
+          amountZaurum: normalizedAmount,
+          proof: (item.proof || []) as `0x${string}`[],
+          merkleRoot: String(item.merkleRoot || item.merkle_root || '0x') as `0x${string}`,
+        };
+      });
       
       // CRITICAL: Deduplicate by predictionId (safety net if backend returns duplicates)
       const seen = new Map<string, ClaimableItem>();
@@ -43,8 +57,7 @@ export function useClaimableClaims(address?: string, limit = 20) {
       
       // Also apply a local "claimed" mask to avoid flicker if backend lags
       try {
-        const addrLower = (address || '').toLowerCase();
-        return deduplicated.filter((it) => !localStorage.getItem(`fcz:claimed:${it.predictionId}:${addrLower}`));
+        return deduplicated.filter((it) => !localStorage.getItem(`fcz:claimed:${it.predictionId}:${addressLower}`));
       } catch {
         return deduplicated;
       }
@@ -53,5 +66,4 @@ export function useClaimableClaims(address?: string, limit = 20) {
     refetchInterval: 30_000,
   });
 }
-
 

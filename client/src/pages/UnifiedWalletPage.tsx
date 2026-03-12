@@ -212,8 +212,9 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
         throw new Error(json?.message || 'Failed to claim Zaurum');
       }
       setDemoSummary(json?.summary ?? null);
+      await queryClient.invalidateQueries({ queryKey: ['wallet', 'summary', user.id], exact: false });
       await queryClient.invalidateQueries({ queryKey: QK.walletActivity(user.id) });
-      await refetchActivity();
+      await Promise.all([refetchActivity(), refetchWalletSummary()]);
       const nextEligibleAt = json?.nextEligibleAt ? Date.parse(String(json.nextEligibleAt)) : NaN;
       const nextAt = Number.isFinite(nextEligibleAt) ? nextEligibleAt : Date.now() + 24 * 60 * 60 * 1000;
       setDemoNextAtMs(nextAt);
@@ -239,7 +240,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
     } finally {
       setDemoLoading(false);
     }
-  }, [user?.id, queryClient, refetchActivity, demoRemainingMs, demoCooldownKey]);
+  }, [user?.id, queryClient, refetchActivity, refetchWalletSummary, demoRemainingMs, demoCooldownKey, formatRemaining]);
 
   useEffect(() => {
     if (isDemoMode) {
@@ -266,7 +267,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   const isLoading = isFiatMode ? loadingFiat : (loadingWalletBalance || loadingSnapshot);
   const creatorEarningsBalance = Number(walletSummary?.creatorEarnings ?? walletSummary?.balances?.creatorEarnings ?? 0);
   const stakeBalance = Number(walletSummary?.stakeBalance ?? walletSummary?.balances?.stakeBalance ?? walletSummary?.available ?? 0);
-  const stakeLockedBalance = Number(walletSummary?.reserved ?? walletSummary?.reservedUSDC ?? demoSummary?.reserved ?? 0);
+  const stakeLockedBalance = Number(walletSummary?.reserved ?? walletSummary?.reservedUSDC ?? 0);
   const parsedTransferAmount = Number.parseFloat(creatorTransferAmount || '0');
   const hasValidTransferAmount = Number.isFinite(parsedTransferAmount) && parsedTransferAmount > 0 && parsedTransferAmount <= creatorEarningsBalance;
   const previewCreatorAfter = hasValidTransferAmount ? Math.max(0, creatorEarningsBalance - parsedTransferAmount) : creatorEarningsBalance;
@@ -319,11 +320,14 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
       toast.success('Creator earnings moved to balance');
       setShowCreatorTransfer(false);
       setCreatorTransferAmount('');
+      if (user?.id) {
+        await queryClient.invalidateQueries({ queryKey: ['wallet', 'summary', user.id], exact: false });
+      }
       await Promise.all([refetchWalletSummary(), refetchActivity()]);
     } catch (e: any) {
       toast.error(e?.message || 'Failed to move creator earnings');
     }
-  }, [hasValidTransferAmount, parsedTransferAmount, transferCreatorEarnings, refetchWalletSummary, refetchActivity]);
+  }, [hasValidTransferAmount, parsedTransferAmount, transferCreatorEarnings, refetchWalletSummary, refetchActivity, queryClient, user?.id]);
 
   const handleDeposit = () => {
     if (isFiatMode) {

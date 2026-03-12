@@ -286,25 +286,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   const isCryptoMode = effectiveCryptoEnabled && !isDemoMode && !isFiatMode;
   const isZaurumStakeMode = isDemoMode || zaurumModeEnabled;
 
-  // Demo wallet summary (DB-backed)
-  const [demoSummary, setDemoSummary] = useState<null | { currency: string; available: number; reserved: number; total: number; lastUpdated: string }>(null);
   const [demoLoading, setDemoLoading] = useState(false);
-
-  const fetchDemoSummary = useCallback(async () => {
-    if (!currentUser?.id) return;
-    try {
-      setDemoLoading(true);
-      const resp = await fetch(`${getApiUrl()}/api/demo-wallet/summary?userId=${currentUser.id}`);
-      const json = await resp.json().catch(() => null);
-      if (!resp.ok) throw new Error(json?.message || 'Failed to load Zaurum wallet');
-      setDemoSummary(json?.summary ?? null);
-    } catch (e: any) {
-      console.error('[DEMO] summary error', e);
-      setDemoSummary(null);
-    } finally {
-      setDemoLoading(false);
-    }
-  }, [currentUser?.id]);
 
   const faucetDemo = useCallback(async () => {
     if (!currentUser?.id) return;
@@ -317,7 +299,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       });
       const json = await resp.json().catch(() => null);
       if (!resp.ok) throw new Error(json?.message || 'Failed to claim Zaurum');
-      setDemoSummary(json?.summary ?? null);
+      await queryClient.invalidateQueries({ queryKey: ['wallet', 'summary', currentUser.id], exact: false });
+      await refetchWalletSummary();
+      await refetchBalances();
       // Persist cooldown timestamp for consistent UX across the app
       if (json?.nextEligibleAt) {
         try {
@@ -338,13 +322,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     } finally {
       setDemoLoading(false);
     }
-  }, [currentUser?.id]);
-
-  useEffect(() => {
-    if (isAuthenticated && isZaurumStakeMode) {
-      void fetchDemoSummary();
-    }
-  }, [isAuthenticated, isZaurumStakeMode, fetchDemoSummary]);
+  }, [currentUser?.id, queryClient, refetchBalances, refetchWalletSummary]);
   
   // Get prediction from store
   const prediction = useMemo(() => {
@@ -462,11 +440,11 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     }
   }, [media, prediction]);
 
-  const demoAvailable = Number(demoSummary?.available ?? 0);
   const zaurumAvailable = Number(
     walletSummary?.stakeBalance ??
     walletSummary?.balances?.stakeBalance ??
-    demoAvailable
+    walletSummary?.available ??
+    0
   );
   const fiatAvailable = Number(fiatData?.summary?.availableNgn ?? 0);
   const displayAvailable = isFiatMode ? fiatAvailable : (isZaurumStakeMode ? zaurumAvailable : availableToStake);
@@ -718,7 +696,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
           queryClient.invalidateQueries({ queryKey: QK.predictionEntries(predictionId) }),
         ]);
       if (isZaurumStakeMode) {
-        await Promise.all([fetchDemoSummary(), refetchWalletSummary()]);
+        await refetchWalletSummary();
       }
       }
       

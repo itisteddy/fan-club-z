@@ -125,26 +125,8 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
     }
   }, [cryptoAllowed, isDemoEnabled, isFiatEnabled, mode, setMode, zaurumModeEnabled]);
 
-  const [demoSummary, setDemoSummary] = useState<null | { available: number; reserved: number; total: number }>(null);
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoError, setDemoError] = useState<string | null>(null);
-
-  const fetchDemoSummary = useCallback(async () => {
-    if (!user?.id) return;
-    try {
-      setDemoLoading(true);
-      setDemoError(null);
-      const resp = await fetch(`${getApiUrl()}/api/demo-wallet/summary?userId=${user.id}`);
-      const json = await resp.json().catch(() => null);
-      if (!resp.ok) throw new Error(json?.message || 'Failed to load Zaurum balance');
-      setDemoSummary(json?.summary ?? null);
-    } catch (e: any) {
-      setDemoError(e?.message || 'Failed to load Zaurum balance');
-      setDemoSummary(null);
-    } finally {
-      setDemoLoading(false);
-    }
-  }, [user?.id]);
 
   const faucetDemo = useCallback(async () => {
     if (!user?.id) return;
@@ -158,8 +140,9 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
       });
       const json = await resp.json().catch(() => null);
       if (!resp.ok) throw new Error(json?.message || 'Failed to claim Zaurum');
-      setDemoSummary(json?.summary ?? null);
+      await queryClient.invalidateQueries({ queryKey: ['wallet', 'summary', user.id], exact: false });
       await refetchWalletSummary();
+      await refetchBalances();
       if (json?.nextEligibleAt) {
         setCooldown(`fcz_demo_credits_next_at:${user.id}`, String(json.nextEligibleAt));
       }
@@ -173,13 +156,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
     } finally {
       setDemoLoading(false);
     }
-  }, [refetchWalletSummary, user?.id]);
-
-  useEffect(() => {
-    if (isDemoMode && isOpen) {
-      void fetchDemoSummary();
-    }
-  }, [isDemoMode, isOpen, fetchDemoSummary]);
+  }, [queryClient, refetchBalances, refetchWalletSummary, user?.id]);
 
   const numAmount = parseFloat(amount) || 0;
   const selectedOption = prediction?.options?.find(o => o.id === selectedOptionId);
@@ -217,11 +194,11 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
       : null;
   const expectedReturn = poolPreview ? poolPreview.expectedReturn : 0;
   const potentialProfit = poolPreview ? poolPreview.profit : 0;
-  const demoAvailable = demoSummary?.available ?? 0;
   const zaurumAvailable = Number(
     walletSummary?.stakeBalance ??
     walletSummary?.balances?.stakeBalance ??
-    demoAvailable
+    walletSummary?.available ??
+    0
   );
   const fiatAvailable = fiatData?.summary?.availableNgn ?? 0;
   
@@ -454,7 +431,7 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
       ]);
       await refetchBalances();
       if (isDemoMode) {
-        await Promise.all([fetchDemoSummary(), refetchWalletSummary()]);
+        await refetchWalletSummary();
       }
       if (isFiatMode) {
         await refetchFiat();

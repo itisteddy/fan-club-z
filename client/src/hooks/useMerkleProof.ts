@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import { getApiUrl } from '@/utils/environment';
-import { QK } from '@/lib/queryKeys';
 
 export type MerkleProofResponse = {
   success: boolean;
@@ -9,14 +8,16 @@ export type MerkleProofResponse = {
     merkleRoot: `0x${string}`;
     amountUnits: string;
     amountUSD: number;
+    amountZaurum?: number;
     proof: `0x${string}`[];
   };
   version: string;
 };
 
 export function useMerkleProof(predictionId?: string, address?: string) {
+  const addressLower = (address || '').toLowerCase();
   return useQuery({
-    queryKey: [...QK.prediction(predictionId || 'unknown'), 'merkle-proof', (address || '').toLowerCase()],
+    queryKey: ['merkle-proof', predictionId || 'unknown', addressLower],
     enabled: Boolean(predictionId && address),
     queryFn: async (): Promise<MerkleProofResponse['data']> => {
       const params = new URLSearchParams({ address: String(address) });
@@ -29,11 +30,14 @@ export function useMerkleProof(predictionId?: string, address?: string) {
         throw new Error(body?.message || 'Failed to fetch merkle proof');
       }
       const json: MerkleProofResponse = await r.json();
-      return json.data;
+      return {
+        ...json.data,
+        amountZaurum: Number(json.data?.amountZaurum ?? json.data?.amountUSD ?? 0),
+        amountUSD: Number(json.data?.amountUSD ?? 0),
+      };
     },
     staleTime: 10_000,
     refetchInterval: 30_000,
   });
 }
-
 
