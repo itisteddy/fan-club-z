@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Edit3, User, Activity, DollarSign, TrendingUp, Target, Trophy, Upload, X, Mail, XCircle } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -18,7 +18,7 @@ import { ProfileReferralSection } from '@/components/profile/ProfileReferralSect
 import { ProfileAchievementsSection } from '@/components/profile/ProfileAchievementsSection';
 import { useReferral } from '@/hooks/useReferral';
 import { useUserAchievements } from '@/hooks/useUserAchievements';
-import { apiClient } from '@/lib/apiClient';
+import { ApiError, apiClient } from '@/lib/apiClient';
 
 interface ProfilePageV2Props {
   onNavigateBack?: () => void;
@@ -66,6 +66,9 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
   const [loading, setLoading] = useState(true);
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
   const [publicProfile, setPublicProfile] = useState<PublicProfilePayload | null>(null);
   const [publicProfileLoading, setPublicProfileLoading] = useState(false);
   const [publicProfileError, setPublicProfileError] = useState<string | null>(null);
@@ -214,6 +217,39 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
     void run();
     return () => { cancelled = true; };
   }, [isOwnProfile, user?.id, displayHandle]);
+
+  const handleDeleteAccount = useCallback(async () => {
+    setDeletingAccount(true);
+    setDeleteAccountError(null);
+    try {
+      const response = await apiClient.post('/users/me/delete', {});
+      if (!response?.success) {
+        throw new Error(response?.message || 'Account deletion failed. Please try again.');
+      }
+
+      // Always clear local session immediately after a successful deletion response.
+      await useAuthStore.getState().logout();
+      navigate('/', { replace: true });
+    } catch (error: any) {
+      if (error instanceof ApiError) {
+        if (error.status === 401) {
+          setDeleteAccountError('Your session expired. Please sign in again and retry.');
+        } else if (error.status === 409) {
+          // Deleted accounts can be treated as success-path from UX perspective.
+          await useAuthStore.getState().logout();
+          navigate('/', { replace: true });
+          return;
+        } else {
+          const serverMessage = (error.responseData as any)?.message;
+          setDeleteAccountError(serverMessage || 'Unable to delete account right now. Please try again.');
+        }
+      } else {
+        setDeleteAccountError(error?.message || 'Unable to delete account right now. Please try again.');
+      }
+    } finally {
+      setDeletingAccount(false);
+    }
+  }, [navigate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -831,18 +867,70 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
     {/* Persistent Sign out CTA */}
     {authenticated && isOwnProfile && (
       <div className="mx-auto w-full max-w-[720px] lg:max-w-[960px] px-4 mt-4 mb-[calc(5rem+env(safe-area-inset-bottom))]">
-        <button
-          onClick={async () => {
-            try {
-              await useAuthStore.getState().logout();
-            } catch (e) {
-              console.error('Logout failed', e);
-            }
-          }}
-          className="w-full text-sm px-4 py-3 rounded-2xl border border-black/[0.06] bg-white text-gray-900 hover:bg-gray-50 flex items-center justify-center shadow-sm"
-        >
-          Sign out
-        </button>
+        <div className="space-y-2">
+          <button
+            onClick={async () => {
+              try {
+                await useAuthStore.getState().logout();
+              } catch (e) {
+                console.error('Logout failed', e);
+              }
+            }}
+            className="w-full text-sm px-4 py-3 rounded-2xl border border-black/[0.06] bg-white text-gray-900 hover:bg-gray-50 flex items-center justify-center shadow-sm"
+          >
+            Sign out
+          </button>
+          <button
+            onClick={() => {
+              setDeleteAccountError(null);
+              setShowDeleteModal(true);
+            }}
+            className="w-full text-sm px-4 py-3 rounded-2xl border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 flex items-center justify-center shadow-sm"
+          >
+            Delete account
+          </button>
+        </div>
+      </div>
+    )}
+
+    {showDeleteModal && (
+      <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+          <div className="px-5 py-4 border-b border-gray-100">
+            <h2 className="text-base font-semibold text-gray-900">Delete account?</h2>
+          </div>
+          <div className="px-5 py-4 space-y-3">
+            <p className="text-sm text-gray-700">
+              This will deactivate your account and anonymize your profile data. You will be signed out immediately.
+            </p>
+            <p className="text-sm text-gray-600">
+              You can restore this account later by signing in again.
+            </p>
+            {deleteAccountError && (
+              <p className="text-sm text-red-600" role="alert">
+                {deleteAccountError}
+              </p>
+            )}
+          </div>
+          <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setShowDeleteModal(false)}
+              disabled={deletingAccount}
+              className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleDeleteAccount}
+              disabled={deletingAccount}
+              className="px-3 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+            >
+              {deletingAccount ? 'Deleting…' : 'Yes, delete account'}
+            </button>
+          </div>
+        </div>
       </div>
     )}
 

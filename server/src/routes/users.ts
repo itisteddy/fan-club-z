@@ -510,7 +510,7 @@ router.post('/me/restore', requireSupabaseAuthAllowDeleted, async (req: Authenti
 
 // POST /api/v2/users/me/delete - Soft-delete current user account.
 // Anonymizes PII, sets status='deleted'. Does NOT delete auth user (so re-login → restore flow).
-router.post('/me/delete', requireSupabaseAuth, async (req: AuthenticatedRequest, res) => {
+router.post('/me/delete', requireSupabaseAuthAllowDeleted, async (req: AuthenticatedRequest, res) => {
   const userId = req.user?.id;
   if (!userId) {
     return res.status(401).json({ error: 'unauthorized', message: 'Authorization required', version: VERSION });
@@ -520,7 +520,16 @@ router.post('/me/delete', requireSupabaseAuth, async (req: AuthenticatedRequest,
     // Idempotency: if already deleted, return success
     const accountStatus = (req as any).accountStatus || 'active';
     if (accountStatus === 'deleted') {
-      return res.status(200).json({ success: true, message: 'Account deleted', version: VERSION });
+      return res.status(200).json({
+        success: true,
+        message: 'Account deleted',
+        data: {
+          accountStatus: 'deleted',
+          alreadyDeleted: true,
+          signedOutRequired: true,
+        },
+        version: VERSION,
+      });
     }
 
     // Determine the best update payload depending on which columns exist
@@ -598,7 +607,16 @@ router.post('/me/delete', requireSupabaseAuth, async (req: AuthenticatedRequest,
     // NOTE: We do NOT delete the auth user. This allows re-login → restore flow.
     // The account is effectively disabled via account_status/is_banned.
 
-    return res.status(200).json({ success: true, message: 'Account deleted', version: VERSION });
+    return res.status(200).json({
+      success: true,
+      message: 'Account deleted',
+      data: {
+        accountStatus: 'deleted',
+        alreadyDeleted: false,
+        signedOutRequired: true,
+      },
+      version: VERSION,
+    });
   } catch (e: any) {
     console.error('[users/me/delete]', e);
     return res.status(500).json({
