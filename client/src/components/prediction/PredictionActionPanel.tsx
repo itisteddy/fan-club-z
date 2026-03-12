@@ -166,7 +166,7 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
             >
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Stake Amount (USD)
+                  Stake Amount (Zaurum)
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
@@ -182,9 +182,9 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
                 </div>
                 <p className="text-sm text-gray-600 mt-1 flex items-center justify-between">
                   <span>
-                    {BASE_ENABLED && BETS_ONCHAIN 
-                      ? `Available in escrow: $${Math.max(0, escrowAvailable).toFixed(2)}`
-                      : `Available: ${(userBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    {BASE_ENABLED && BETS_ONCHAIN
+                      ? `Available in escrow: ${Math.max(0, escrowAvailable).toFixed(2)} Zaurum`
+                      : `Available: ${(userBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Zaurum`
                     }
                   </span>
                   {(BASE_ENABLED && BETS_ONCHAIN ? needsFunds : parseFloat(stakeAmount) > userBalance) && (
@@ -234,7 +234,7 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
                   className="w-full py-4 rounded-xl font-bold text-lg transition-all transform bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 active:scale-[0.98] shadow-lg hover:shadow-xl"
                   style={{ position: 'relative', zIndex: 10 }}
                 >
-                  Add funds (need ${Math.max(0, stakeValue - escrowAvailable).toFixed(2)})
+                  Add funds (need ${Math.max(0, stakeValue - escrowAvailable).toFixed(2)} Zaurum)
                 </button>
               ) : (
                 <button
@@ -260,7 +260,7 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
                   ) : parseFloat(stakeAmount) <= 0 || !stakeAmount ? (
                     'Enter Amount'
                   ) : (
-                    `${t('betVerb')}: $${parseFloat(stakeAmount).toFixed(2)}`
+                    `${t('betVerb')}: ${parseFloat(stakeAmount).toFixed(2)} Zaurum`
                   )}
                 </button>
               )}

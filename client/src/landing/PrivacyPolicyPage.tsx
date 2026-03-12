@@ -35,12 +35,12 @@ export default function PrivacyPolicyPage() {
           <h2 className="text-lg font-semibold text-white">2) What FanClubZ does</h2>
           <p>
             FanClubZ is a social predictions product. Users can create and participate in predictions, discuss outcomes,
-            and track activity. The app supports a <strong className="text-white">Demo Credits</strong> experience, and
+            and track activity. The app supports a <strong className="text-white">Zaurum</strong> experience, and
             may offer <strong className="text-white">optional</strong> wallet-connected functionality depending on the
             platform/build and user choice.
           </p>
           <p className="text-white/70">
-            <strong className="text-white">Demo credits have no cash value</strong> and are provided for exploration and
+            <strong className="text-white">Zaurum has no cash value</strong> and is provided for exploration and
             entertainment.
           </p>
         </section>
@@ -217,4 +217,3 @@ export default function PrivacyPolicyPage() {
     </LegalLayout>
   );
 }
-

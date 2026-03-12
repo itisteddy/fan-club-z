@@ -51,7 +51,7 @@ export const policy = {
 
   /**
    * Can use real-money language in UI?
-   * If false, use neutral wording like "Stakes", "Predictions", "Demo credits"
+   * If false, use neutral wording like "Stakes", "Predictions", "Zaurum"
    */
   get allowRealMoneyLanguage(): boolean {
     return !STORE_SAFE_MODE;
@@ -98,7 +98,7 @@ export function getFundingModeLabel(mode: FundingSource): string {
     // In store-safe mode, use neutral language
     switch (mode) {
       case 'demo':
-        return 'Demo Credits';
+        return 'Zaurum';
       case 'crypto':
         return 'Crypto (Unavailable)';
       case 'fiat':
@@ -111,7 +111,7 @@ export function getFundingModeLabel(mode: FundingSource): string {
   // Web: use normal labels
   switch (mode) {
     case 'demo':
-      return 'Demo Credits';
+      return 'Zaurum';
     case 'crypto':
       return 'Crypto';
     case 'fiat':
@@ -138,12 +138,12 @@ export function getBlockedFeatureMessage(featureKey: 'crypto-wallet' | 'fiat-pay
 
   switch (featureKey) {
     case 'crypto-wallet':
-      return 'Crypto wallet features are not available in demo mode. Try demo credits instead.';
+      return 'Crypto wallet features are not available in Zaurum mode.';
     case 'fiat-payments':
-      return 'Fiat payments are not available in demo mode. Try demo credits instead.';
+      return 'Fiat payments are not available in Zaurum mode.';
     case 'withdrawals':
-      return 'Withdrawals are not available in demo mode.';
+      return 'Withdrawals are not available in Zaurum mode.';
     default:
-      return 'This feature is not available in demo mode.';
+      return 'This feature is not available in Zaurum mode.';
   }
 }

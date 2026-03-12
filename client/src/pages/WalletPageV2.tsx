@@ -882,7 +882,7 @@ const WalletPageV2: React.FC<WalletPageV2Props> = ({ onNavigateBack }) => {
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Demo Credits</span>
+                    <span className="text-gray-600">Zaurum</span>
                     <span className="font-mono font-medium text-gray-900">{formatCurrency(demoCreditsBalance, { compact: false })}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">

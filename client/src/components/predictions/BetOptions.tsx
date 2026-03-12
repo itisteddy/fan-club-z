@@ -81,7 +81,7 @@ export default function BetOptions({
       {selected && (
         <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
           <label htmlFor="stake-input" className="text-sm font-medium text-foreground">
-            Stake Amount (USD)
+            Stake Amount (Zaurum)
           </label>
           <div className="relative">
             <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-muted-foreground pointer-events-none" />
@@ -106,7 +106,7 @@ export default function BetOptions({
           {/* Balance & Error Messages */}
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">
-              Available: ${balance.toLocaleString()}
+              Available: {balance.toLocaleString()} Zaurum
             </span>
             {insufficientBalance && (
               <span id="stake-error" className="text-destructive font-medium" role="alert">
@@ -124,7 +124,7 @@ export default function BetOptions({
                 disabled={disabled || amount > balance}
                 className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm font-medium hover:bg-muted hover:border-muted-foreground/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                ${amount}
+                {amount}
               </button>
             ))}
           </div>
@@ -133,4 +133,3 @@ export default function BetOptions({
     </div>
   );
 }
-
