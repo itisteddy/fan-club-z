@@ -10,6 +10,24 @@ import {
 
 export const walletSummary = Router();
 
+async function ensureInAppWalletRow(userId: string) {
+  await supabase
+    .from('wallets')
+    .upsert(
+      {
+        user_id: userId,
+        currency: 'DEMO_USD',
+        available_balance: 0,
+        reserved_balance: 0,
+        demo_credits_balance: 0,
+        creator_earnings_balance: 0,
+        stake_balance: 0,
+        updated_at: new Date().toISOString(),
+      } as any,
+      { onConflict: 'user_id,currency', ignoreDuplicates: true }
+    );
+}
+
 // [PERF] Helper to generate ETag from response data
 function generateETag(data: unknown): string {
   const hash = crypto.createHash('md5').update(JSON.stringify(data)).digest('hex');
@@ -73,6 +91,14 @@ async function handleSummaryRequest(
 ) {
   try {
     console.log(`[FCZ-PAY] Fetching wallet summary for user: ${userId}`);
+
+    // Harden bootstrap: ensure in-app wallet row exists for active summary reads.
+    // Keep non-fatal to preserve existing fallback response behavior.
+    try {
+      await ensureInAppWalletRow(userId);
+    } catch (bootstrapErr) {
+      console.warn('[FCZ-PAY] wallet bootstrap upsert failed (non-fatal):', bootstrapErr);
+    }
 
     // ALWAYS read demo wallet from DB (this must work regardless of crypto state)
     let demoAvailable = 0;
