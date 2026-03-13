@@ -334,6 +334,19 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
     }
   };
 
+  const emptyStateUsesZaurumClaim = zaurumModeEnabled || isDemoMode;
+  const emptyStateCtaLabel = emptyStateUsesZaurumClaim
+    ? (demoRemainingMs > 0 ? `Next claim in ${formatRemaining(demoRemainingMs)}` : 'Claim Zaurum')
+    : (isFiatMode ? 'Make Your First Deposit' : 'Make Your First Deposit');
+  const handleEmptyStatePrimaryAction = () => {
+    if (emptyStateUsesZaurumClaim) {
+      void faucetDemo();
+      return;
+    }
+    handleDeposit();
+  };
+  const emptyStateCtaDisabled = emptyStateUsesZaurumClaim ? (demoLoading || demoRemainingMs > 0) : false;
+
   const handleWithdraw = () => {
     if (isFiatMode) {
       setShowFiatWithdraw(true);
@@ -856,10 +869,11 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                       description="Your transaction history will appear here."
                       primaryAction={
                         <button
-                          onClick={handleDeposit}
-                          className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+                          onClick={handleEmptyStatePrimaryAction}
+                          disabled={emptyStateCtaDisabled}
+                          className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          Make Your First Deposit
+                          {emptyStateCtaLabel}
                         </button>
                       }
                     />
