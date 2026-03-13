@@ -35,6 +35,8 @@ interface ManagePredictionModalProps {
     participant_count?: number;
     creator_fee_percentage?: number;
     entry_deadline?: string;
+    settled_at?: string | null;
+    settledAt?: string | null;
     options?: any[];
     image_url?: string | null;
   };
@@ -88,11 +90,18 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
   const { user } = useAuthStore();
   const { session } = useAuthSession();
 
+  const isPredictionSettled = useCallback((pred: any) => {
+    if (!pred) return false;
+    const status = String(pred.status || '').toLowerCase();
+    return status === 'settled' || pred.settled_at != null || pred.settledAt != null;
+  }, []);
+
   // Helper function to determine if prediction can be settled
   const canSettle = (pred: any) => {
-    if (pred.status === 'settled' || (pred.settled_at != null)) return false;
+    if (isPredictionSettled(pred)) return false;
     // Can settle if prediction is closed, ended, or if it's past the deadline
-    if (pred.status === 'closed' || pred.status === 'ended') return true;
+    const status = String(pred.status || '').toLowerCase();
+    if (status === 'closed' || status === 'ended') return true;
     // Check if deadline has passed for open predictions
     const deadline = pred.entry_deadline;
     if (deadline) {
@@ -103,7 +112,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
     return false;
   };
 
-  const isAlreadySettled = (pred: any) => pred?.status === 'settled' || pred?.settled_at != null;
+  const isAlreadySettled = (pred: any) => isPredictionSettled(pred);
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
@@ -131,10 +140,10 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
         // Force update the prediction object with all data from API
         Object.assign(prediction, fullPrediction);
         // Update state to force re-render of all components (map to expected type)
-        setPredictionData({
-          id: fullPrediction.id,
-          title: fullPrediction.title,
-          category: fullPrediction.category,
+          setPredictionData({
+            id: fullPrediction.id,
+            title: fullPrediction.title,
+            category: fullPrediction.category,
           totalPool: fullPrediction.pool_total || fullPrediction.poolTotal || 0,
           participants: fullPrediction.participant_count || fullPrediction.participantCount || 0,
           timeRemaining: formatTimeRemaining(fullPrediction.entry_deadline || fullPrediction.entryDeadline || ''),
@@ -143,10 +152,11 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
           description: fullPrediction.description,
           pool_total: fullPrediction.pool_total || fullPrediction.poolTotal,
           participant_count: fullPrediction.participant_count || fullPrediction.participantCount,
-          creator_fee_percentage: fullPrediction.creator_fee_percentage,
-          entry_deadline: fullPrediction.entry_deadline || fullPrediction.entryDeadline,
-          options: fullPrediction.options
-        });
+            creator_fee_percentage: fullPrediction.creator_fee_percentage,
+            entry_deadline: fullPrediction.entry_deadline || fullPrediction.entryDeadline,
+            options: fullPrediction.options,
+            settled_at: (fullPrediction as any).settled_at ?? (fullPrediction as any).settledAt ?? null
+          });
       } else {
         console.warn('⚠️ ManagePredictionModal: No options found for prediction:', prediction.id);
         // Try to fetch again with a delay
@@ -170,6 +180,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
               creator_fee_percentage: retryPrediction.creator_fee_percentage,
               entry_deadline: retryPrediction.entry_deadline || retryPrediction.entryDeadline,
               options: retryPrediction.options,
+              settled_at: (retryPrediction as any).settled_at ?? (retryPrediction as any).settledAt ?? null,
               image_url: (retryPrediction as any).image_url ?? undefined
             });
           }
@@ -576,10 +587,10 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
             ) : (
               <motion.button
                 onClick={() => setShowSettlementModal(true)}
-                disabled={updating || loading || !canSettle(prediction)}
+                disabled={updating || loading || !canSettle(predictionData)}
                 className="flex-1 flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-2xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 group border-2 border-emerald-400/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:border-gray-300/30"
-                whileHover={{ scale: (updating || loading || !canSettle(prediction)) ? 1 : 1.02 }}
-                whileTap={{ scale: (updating || loading || !canSettle(prediction)) ? 1 : 0.98 }}
+                whileHover={{ scale: (updating || loading || !canSettle(predictionData)) ? 1 : 1.02 }}
+                whileTap={{ scale: (updating || loading || !canSettle(predictionData)) ? 1 : 0.98 }}
               >
                 <Gavel className="w-5 h-5 group-hover:scale-110 transition-transform" />
                 <span>Settle</span>

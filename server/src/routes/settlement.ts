@@ -83,6 +83,64 @@ async function loadPredictionForManualMerkle(predictionId: string) {
   return { prediction: fallback.data as any, error: null as any, usedFallback: true };
 }
 
+async function updatePredictionSettledIdempotent(args: {
+  predictionId: string;
+  winningOptionId: string;
+  reason?: string | null;
+  sourceUrl?: string | null;
+  onlyIfUnsettled?: boolean;
+}): Promise<{ updated: boolean; error: any }> {
+  const { predictionId, winningOptionId, reason, sourceUrl, onlyIfUnsettled = true } = args;
+  const nowIso = new Date().toISOString();
+  const attempts: Array<Record<string, any>> = [
+    {
+      status: 'settled',
+      settled_at: nowIso,
+      winning_option_id: winningOptionId,
+      resolution_reason: reason ?? null,
+      resolution_source_url: sourceUrl ?? null,
+      updated_at: nowIso,
+    },
+    {
+      status: 'settled',
+      settled_at: nowIso,
+      resolution_reason: reason ?? null,
+      resolution_source_url: sourceUrl ?? null,
+      updated_at: nowIso,
+    },
+    {
+      status: 'settled',
+      settled_at: nowIso,
+      updated_at: nowIso,
+    },
+  ];
+
+  let lastError: any = null;
+  for (const payload of attempts) {
+    let updateQuery = supabase
+      .from('predictions')
+      .update(payload)
+      .eq('id', predictionId);
+    if (onlyIfUnsettled) {
+      updateQuery = updateQuery.is('settled_at', null);
+    }
+
+    const { data, error } = await updateQuery
+      .select('id')
+      .maybeSingle();
+
+    if (!error) {
+      return { updated: Boolean(data), error: null };
+    }
+    if (!isColumnSelectError(error)) {
+      return { updated: false, error };
+    }
+    lastError = error;
+  }
+
+  return { updated: false, error: lastError };
+}
+
 // Minimal ABI for settlement root read
 const ESCROW_MERKLE_READ_ABI = [
   {
@@ -1298,19 +1356,21 @@ router.post('/manual', async (req, res) => {
     }
 
     // Idempotency: conditional update — only set settled where settled_at IS NULL (SETTLED is terminal)
-    const { data: updatedRow } = await supabase
-      .from('predictions')
-      .update({
-        status: 'settled',
-        settled_at: new Date().toISOString(),
-        winning_option_id: winningOptionId,
-        resolution_reason: reason ?? null,
-        resolution_source_url: proofUrl ?? null,
-      })
-      .eq('id', predictionId)
-      .is('settled_at', null)
-      .select('id')
-      .maybeSingle();
+    const { updated: updatedRow, error: settlementUpdateError } = await updatePredictionSettledIdempotent({
+      predictionId,
+      winningOptionId,
+      reason: reason ?? null,
+      sourceUrl: proofUrl ?? null,
+      onlyIfUnsettled: true,
+    });
+    if (settlementUpdateError) {
+      console.error('[SETTLEMENT] manual prediction update failed:', settlementUpdateError);
+      return res.status(500).json({
+        error: 'Database error',
+        message: 'Failed to mark prediction settled',
+        version: VERSION
+      });
+    }
 
     if (!updatedRow) {
       // Already settled: return 200 with settlement data (no duplicate payout)
@@ -2584,15 +2644,16 @@ router.post('/manual/merkle', async (req, res) => {
       });
     }
 
+    // Idempotency guard: treat existing settlement row as settled source of truth
+    const { data: existingSettlement } = await supabase
+      .from('bet_settlements')
+      .select('winning_option_id,settlement_time')
+      .eq('bet_id', predictionId)
+      .maybeSingle();
     // Idempotency: if already settled, return 200 with contract (no duplicate payout)
     const statusLower = String((prediction as any).status || '').toLowerCase();
-    if (statusLower === 'settled' || (prediction as any).settled_at) {
-      const { data: bs } = await supabase
-        .from('bet_settlements')
-        .select('winning_option_id, settlement_time')
-        .eq('bet_id', predictionId)
-        .maybeSingle();
-      const existingWinning = (prediction as any).winning_option_id ?? bs?.winning_option_id;
+    if (statusLower === 'settled' || (prediction as any).settled_at || existingSettlement?.settlement_time) {
+      const existingWinning = (prediction as any).winning_option_id ?? existingSettlement?.winning_option_id;
       if (existingWinning && existingWinning !== winningOptionId) {
         return res.status(409).json({
           error: 'Conflict',
@@ -2601,7 +2662,7 @@ router.post('/manual/merkle', async (req, res) => {
         });
       }
       const winningOptionIdFinal = existingWinning || winningOptionId;
-      const settledAt = (prediction as any).settled_at ?? bs?.settlement_time ?? null;
+      const settledAt = (prediction as any).settled_at ?? existingSettlement?.settlement_time ?? null;
       console.log('settlePrediction: already settled', { predictionId });
       return res.status(200).json(
         buildSettlementContract({
@@ -2641,6 +2702,32 @@ router.post('/manual/merkle', async (req, res) => {
 
     // Demo-only prediction: settle off-chain and do NOT require on-chain root
     if (!hasCryptoRail) {
+      const { updated: markedSettled, error: markSettledError } = await updatePredictionSettledIdempotent({
+        predictionId,
+        winningOptionId,
+        reason: reason || null,
+        sourceUrl: null,
+        onlyIfUnsettled: true,
+      });
+      if (markSettledError) {
+        console.error('[SETTLEMENT] Failed to mark demo-only prediction settled:', markSettledError);
+        return res.status(500).json({ error: 'database_error', message: 'Failed to mark prediction settled', version: VERSION });
+      }
+      if (!markedSettled) {
+        // Race/idempotency protection: do not re-apply settlement side effects.
+        return res.status(200).json(
+          buildSettlementContract({
+            predictionId,
+            alreadySettled: true,
+            winningOptionId,
+            settledAt: (prediction as any).settled_at ?? existingSettlement?.settlement_time ?? null,
+            settledByUserId: (prediction as any).creator_id ?? null,
+            reason: (prediction as any).resolution_reason ?? null,
+            sourceUrl: (prediction as any).resolution_source_url ?? null,
+          })
+        );
+      }
+
       await supabase
         .from('bet_settlements')
         .upsert(
@@ -2656,18 +2743,6 @@ router.post('/manual/merkle', async (req, res) => {
           } as any,
           { onConflict: 'bet_id' } as any
         );
-
-      try {
-        await supabase
-          .from('predictions')
-          .update({
-            status: 'settled',
-            settled_at: new Date().toISOString(),
-            winning_option_id: winningOptionId,
-            updated_at: new Date().toISOString(),
-          } as any)
-          .eq('id', predictionId);
-      } catch {}
 
       emitSettlementComplete({ predictionId });
       emitPredictionUpdate({ predictionId });
@@ -2697,20 +2772,32 @@ router.post('/manual/merkle', async (req, res) => {
     // (mobile, web, admin) is irrelevant. Claims happen later.
     if (!isCryptoEnabledOnServer()) {
       console.log('[SETTLEMENT] Crypto entries exist but CRYPTO_MODE=off on server — skipping crypto rail');
-      // Mark prediction as settled (demo done, crypto skipped due to env)
-      try {
-        await supabase
-          .from('predictions')
-          .update({
-            status: 'settled',
-            settled_at: new Date().toISOString(),
-            winning_option_id: winningOptionId,
-            resolution_reason: reason || null,
-            updated_at: new Date().toISOString(),
-          } as any)
-          .eq('id', predictionId);
-      } catch {}
+      const { updated: markedSettled, error: markSettledError } = await updatePredictionSettledIdempotent({
+        predictionId,
+        winningOptionId,
+        reason: reason || null,
+        sourceUrl: null,
+        onlyIfUnsettled: true,
+      });
+      if (markSettledError) {
+        console.error('[SETTLEMENT] Failed to mark prediction settled for crypto-disabled branch:', markSettledError);
+        return res.status(500).json({ error: 'database_error', message: 'Failed to mark prediction settled', version: VERSION });
+      }
+      if (!markedSettled) {
+        return res.status(200).json(
+          buildSettlementContract({
+            predictionId,
+            alreadySettled: true,
+            winningOptionId,
+            settledAt: (prediction as any).settled_at ?? existingSettlement?.settlement_time ?? null,
+            settledByUserId: (prediction as any).creator_id ?? null,
+            reason: (prediction as any).resolution_reason ?? null,
+            sourceUrl: (prediction as any).resolution_source_url ?? null,
+          })
+        );
+      }
 
+      // Mark prediction as settled (demo done, crypto skipped due to env)
       await supabase
         .from('bet_settlements')
         .upsert(
