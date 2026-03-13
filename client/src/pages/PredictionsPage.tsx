@@ -42,6 +42,11 @@ function formatZaurumNumber(value: number) {
   }).format(Math.abs(Number(value) || 0));
 }
 
+function safeCategoryLabel(category: unknown): string {
+  const normalized = typeof category === 'string' && category.trim().length > 0 ? category : 'custom';
+  return normalized.replace(/_/g, ' ');
+}
+
 // Production BetsTab Component - Extracted from production bundle
 const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNavigateToDiscover }) => {
   const navigate = useNavigate();
@@ -633,7 +638,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
             <span className={`px-2 py-1 rounded-lg text-xs font-medium ${getCategoryColor(prediction.category)}`}>
-              {(prediction.category || 'custom').replace('_', ' ')}
+              {safeCategoryLabel(prediction.category)}
             </span>
             <span className={`px-2 py-1 rounded-lg text-xs font-medium border ${getStatusColor(prediction.status)}`}>
               Active
@@ -747,7 +752,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
             <span className={`px-2 py-1 rounded-lg text-xs font-medium ${getCategoryColor(prediction.category)}`}>
-              {prediction.category.replace('_', ' ')}
+              {safeCategoryLabel(prediction.category)}
             </span>
             <span className="px-2 py-1 rounded-lg text-xs font-medium border bg-blue-50 text-blue-700 border-blue-200">
               {prediction.status === 'open' ? 'Open' : prediction.status}
@@ -890,7 +895,7 @@ const PredictionsPage: React.FC<{ onNavigateToDiscover?: () => void }> = ({ onNa
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
             <span className={`px-2 py-1 rounded-lg text-xs font-medium ${getCategoryColor(prediction.category)}`}>
-              {vm.categoryLabel || prediction.category.replace('_', ' ')}
+              {vm.categoryLabel || safeCategoryLabel(prediction.category)}
             </span>
             {archived ? (
               <span className="px-2 py-1 rounded-lg text-xs font-medium border bg-gray-50 text-gray-700 border-gray-200">Archived</span>

@@ -21,6 +21,7 @@ import type {
   AchievementBadge,
 } from '@/hooks/useUserAchievements';
 import { formatTimeAgo } from '@/lib/format';
+import { ZaurumAmount } from '@/components/ui/ZaurumAmount';
 
 type TitleTile = {
   type: 'title';
@@ -110,6 +111,30 @@ function metricLabel(metric?: string) {
     default:
       return 'Score';
   }
+}
+
+function isInAppAmountMetric(metric?: string | null) {
+  return metric === 'creator_earnings_amount' || metric === 'payouts_amount' || metric === 'net_profit';
+}
+
+function renderProgressLabel(definition: AchievementBadgeDefinition) {
+  if (!isInAppAmountMetric(definition.progressMetric)) {
+    return definition.progressLabel ?? '';
+  }
+
+  const current = Number(definition.currentValue ?? 0);
+  const goal = Number(definition.goalValue ?? 0);
+  if (!Number.isFinite(current) || !Number.isFinite(goal)) {
+    return definition.progressLabel ?? '';
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      <ZaurumAmount amount={current} size={10} />
+      <span>/</span>
+      <ZaurumAmount amount={goal} size={10} />
+    </span>
+  );
 }
 
 function badgeHowToEarnBullets(badgeKey: string): string[] {
@@ -304,7 +329,12 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
                   const Icon = iconForBadge(tile.definition);
                   const earned = Boolean(tile.earned);
                   const progressLabel = tile.definition.progressLabel;
+                  const progressNode = renderProgressLabel(tile.definition);
                   const progressPct = typeof tile.definition.progressPct === 'number' ? tile.definition.progressPct : 0;
+                  const shouldShowProgress =
+                    Boolean(progressLabel) ||
+                    (isInAppAmountMetric(tile.definition.progressMetric) &&
+                      Number.isFinite(Number(tile.definition.goalValue ?? NaN)));
                   return (
                     <button
                       key={tile.definition.key}
@@ -334,9 +364,9 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
                       <div className={['mt-2 text-[10px] leading-tight line-clamp-2', earned ? 'text-gray-700' : 'text-gray-500'].join(' ')}>
                         {tile.definition.title}
                       </div>
-                      {!earned && progressLabel && (
+                      {!earned && shouldShowProgress && (
                         <div className="mt-1 space-y-1">
-                          <div className="text-[10px] text-gray-400">{progressLabel}</div>
+                          <div className="text-[10px] text-gray-400">{progressNode}</div>
                           <div className="h-1 w-full rounded-full bg-gray-200 overflow-hidden">
                             <div
                               className="h-full rounded-full bg-gray-400/70"
@@ -445,7 +475,7 @@ export const ProfileAchievementsSection: React.FC<Props> = ({
                         <div className="px-3 py-2">
                           <div className="flex items-center justify-between text-sm">
                             <span className="text-gray-500">Progress</span>
-                            <span className="font-medium text-gray-900">{detail.definition.progressLabel}</span>
+                            <span className="font-medium text-gray-900">{renderProgressLabel(detail.definition)}</span>
                           </div>
                           {!detail.earned && (
                             <div className="mt-2 h-1.5 rounded-full bg-gray-200 overflow-hidden">
