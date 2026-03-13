@@ -23,6 +23,7 @@
     "db:connect": "tsx scripts/db-connect.ts",
     "db:migrate-file": "tsx scripts/run-migration.ts",
     "db:query": "tsx scripts/db-query.ts",
+    "db:zaurum-migration": "tsx scripts/zaurum-legacy-migration.ts",
     "db:inspect": "tsx scripts/inspect-db.ts",
     "db:migrate-supabase": "tsx scripts/run-migrations-supabase.ts",
     "db:migrate-all": "tsx scripts/run-migrations-all.ts",

@@ -8,6 +8,7 @@ import type { AuthenticatedRequest } from '../middleware/auth';
 import { z } from 'zod';
 import {
   getWalletBalanceAccountsSummary,
+  getCreatorEarningsMilestoneSummary,
   listCreatorEarningsHistory,
   transferCreatorEarningsToStake,
   WalletBalanceError,
@@ -108,6 +109,12 @@ walletRead.get('/summary/:userId', async (req, res) => {
       creatorEarnings: number;
       stakeBalance: number;
       stakeReserved: number;
+      bucketBalances: {
+        claimZaurum: number;
+        wonZaurum: number;
+        creatorFeeZaurum: number;
+        legacyMigratedZaurum: number;
+      };
     };
     try {
       balanceAccounts = await getWalletBalanceAccountsSummary(userId);
@@ -118,6 +125,12 @@ walletRead.get('/summary/:userId', async (req, res) => {
         creatorEarnings: Number(wallet?.creator_earnings_balance ?? 0),
         stakeBalance: Number(wallet?.stake_balance ?? wallet?.available_balance ?? 0),
         stakeReserved: Number(wallet?.reserved_balance ?? 0),
+        bucketBalances: {
+          claimZaurum: 0,
+          wonZaurum: 0,
+          creatorFeeZaurum: 0,
+          legacyMigratedZaurum: 0,
+        },
       };
     }
 
@@ -135,10 +148,18 @@ walletRead.get('/summary/:userId', async (req, res) => {
         demoCredits: Number((balanceAccounts.demoCredits ?? 0).toFixed(2)),
         creatorEarnings: Number((balanceAccounts.creatorEarnings ?? 0).toFixed(2)),
         stakeBalance: Number((balanceAccounts.stakeBalance ?? available).toFixed(2)),
+        claimZaurum: Number((balanceAccounts.bucketBalances.claimZaurum ?? 0).toFixed(2)),
+        wonZaurum: Number((balanceAccounts.bucketBalances.wonZaurum ?? 0).toFixed(2)),
+        creatorFeeZaurum: Number((balanceAccounts.bucketBalances.creatorFeeZaurum ?? 0).toFixed(2)),
+        legacyMigratedZaurum: Number((balanceAccounts.bucketBalances.legacyMigratedZaurum ?? 0).toFixed(2)),
       },
       demoCredits: Number((balanceAccounts.demoCredits ?? 0).toFixed(2)),
       creatorEarnings: Number((balanceAccounts.creatorEarnings ?? 0).toFixed(2)),
       stakeBalance: Number((balanceAccounts.stakeBalance ?? available).toFixed(2)),
+      claimZaurum: Number((balanceAccounts.bucketBalances.claimZaurum ?? 0).toFixed(2)),
+      wonZaurum: Number((balanceAccounts.bucketBalances.wonZaurum ?? 0).toFixed(2)),
+      creatorFeeZaurum: Number((balanceAccounts.bucketBalances.creatorFeeZaurum ?? 0).toFixed(2)),
+      legacyMigratedZaurum: Number((balanceAccounts.bucketBalances.legacyMigratedZaurum ?? 0).toFixed(2)),
       legacyAvailableBalance: Number(available.toFixed(2)),
       // Populate escrow metrics from on-chain snapshot when available
       availableToStakeUSDC: Number(
@@ -215,17 +236,25 @@ walletRead.post('/transfer-creator-earnings', requireSupabaseAuth, async (req: A
     const result = await transferCreatorEarningsToStake({
       userId: req.user.id,
       amount: parsed.data.amount,
+      requestId: typeof (req.body as any)?.requestId === 'string' ? (req.body as any).requestId : undefined,
     });
 
     const accounts = await getWalletBalanceAccountsSummary(req.user.id);
+    const milestone = await getCreatorEarningsMilestoneSummary(req.user.id);
 
     return res.json({
       ok: true,
+      applied: result.applied,
       transactionId: result.transactionId,
       balances: {
         demoCredits: Number(accounts.demoCredits.toFixed(2)),
         creatorEarnings: Number(accounts.creatorEarnings.toFixed(2)),
         stakeBalance: Number(accounts.stakeBalance.toFixed(2)),
+        creatorEarningsCumulative: Number(milestone.cumulativeCredited.toFixed(2)),
+      },
+      milestones: {
+        first10ZaurumEarned: milestone.first10ZaurumEarned,
+        first10Label: milestone.first10Label,
       },
       version: VERSION,
     });

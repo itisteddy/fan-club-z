@@ -13,6 +13,7 @@ import {
   computeStakeQuoteFromDb,
   insertPositionStakeEvent,
 } from '../../services/stakeQuote';
+import { consumeStakeDebitFromBuckets, normalizeBucketBalances } from '../../services/zaurumBuckets';
 import { beginPredictionStakeLock, PredictionStakeLockError } from '../../services/predictionStakeLock';
 import { requireSupabaseAuth } from '../../middleware/requireSupabaseAuth';
 import { isCryptoAllowedForClient } from '../../middleware/requireCryptoEnabled';
@@ -117,6 +118,11 @@ export async function insertWalletTransactionCompat(payload: Record<string, any>
     if (message.includes('entry_id') && 'entry_id' in currentPayload) {
       const { entry_id: _dropped, ...withoutEntryId } = currentPayload;
       currentPayload = withoutEntryId;
+      continue;
+    }
+    if (message.includes('source_bucket') && 'source_bucket' in currentPayload) {
+      const { source_bucket: _dropped, ...withoutSourceBucket } = currentPayload;
+      currentPayload = withoutSourceBucket;
       continue;
     }
 
@@ -532,21 +538,48 @@ async function handlePlaceBet(req: any, res: any) {
       }
 
       // Reserve demo balance (compare-and-swap to reduce race issues)
-      const { data: w } = await supabase
+      let bucketColumnsAvailable = true;
+      let { data: w, error: walletReadErr } = await supabase
         .from('wallets')
-        .select('available_balance,reserved_balance,demo_credits_balance')
+        .select('available_balance,reserved_balance,demo_credits_balance,claim_zaurum_balance,won_zaurum_balance,creator_fee_zaurum_balance,legacy_migrated_zaurum_balance')
         .eq('user_id', userId)
         .eq('currency', DEMO_CURRENCY)
         .maybeSingle();
+      if (walletReadErr && isMissingColumnError(walletReadErr)) {
+        bucketColumnsAvailable = false;
+        const fallback = await supabase
+          .from('wallets')
+          .select('available_balance,reserved_balance,demo_credits_balance')
+          .eq('user_id', userId)
+          .eq('currency', DEMO_CURRENCY)
+          .maybeSingle();
+        w = fallback.data as any;
+        walletReadErr = fallback.error as any;
+      }
+      if (walletReadErr) {
+        return res.status(500).json({ error: 'DATABASE_ERROR', message: 'Failed to load wallet balance', version: VERSION });
+      }
       const prevAvailLegacy = Number((w as any)?.available_balance || 0);
       const hasExplicitDemoAvail = (w as any)?.demo_credits_balance !== null && (w as any)?.demo_credits_balance !== undefined;
       const prevDemoAvail = Number((w as any)?.demo_credits_balance ?? prevAvailLegacy);
       const prevRes = Number((w as any)?.reserved_balance || 0);
+      const prevBuckets = normalizeBucketBalances(w || {});
       if (prevDemoAvail < amountUSD) {
         return res.status(400).json({ error: 'INSUFFICIENT_FUNDS', message: 'Insufficient demo credits', version: VERSION });
       }
       const nextDemoAvail = prevDemoAvail - amountUSD;
       const nextRes = prevRes + amountUSD;
+      const bucketDebit = consumeStakeDebitFromBuckets({
+        balances: prevBuckets,
+        amount: amountUSD,
+      });
+      if (bucketColumnsAvailable && !bucketDebit.sufficient) {
+        return res.status(400).json({
+          error: 'INSUFFICIENT_FUNDS',
+          message: 'Insufficient classified balance to place stake',
+          version: VERSION,
+        });
+      }
       let balanceUpdateQuery = supabase
         .from('wallets')
         .update({
@@ -554,6 +587,14 @@ async function handlePlaceBet(req: any, res: any) {
           available_balance: nextDemoAvail,
           demo_credits_balance: nextDemoAvail,
           reserved_balance: nextRes,
+          ...(bucketColumnsAvailable
+            ? {
+                claim_zaurum_balance: bucketDebit.next.claim_zaurum,
+                won_zaurum_balance: bucketDebit.next.won_zaurum,
+                creator_fee_zaurum_balance: bucketDebit.next.creator_fee_zaurum,
+                legacy_migrated_zaurum_balance: bucketDebit.next.legacy_migrated_zaurum,
+              }
+            : {}),
           updated_at: new Date().toISOString(),
         } as any)
         .eq('user_id', userId)
@@ -562,6 +603,13 @@ async function handlePlaceBet(req: any, res: any) {
         .eq('reserved_balance', prevRes);
       if (hasExplicitDemoAvail) {
         balanceUpdateQuery = balanceUpdateQuery.eq('demo_credits_balance', prevDemoAvail);
+      }
+      if (bucketColumnsAvailable) {
+        balanceUpdateQuery = balanceUpdateQuery
+          .eq('claim_zaurum_balance', prevBuckets.claim_zaurum)
+          .eq('won_zaurum_balance', prevBuckets.won_zaurum)
+          .eq('creator_fee_zaurum_balance', prevBuckets.creator_fee_zaurum)
+          .eq('legacy_migrated_zaurum_balance', prevBuckets.legacy_migrated_zaurum);
       }
       const { error: balErr } = await balanceUpdateQuery;
       if (balErr) {
@@ -662,12 +710,20 @@ async function handlePlaceBet(req: any, res: any) {
         provider: PROVIDER,
         amount: amountUSD,
         currency: DEMO_CURRENCY,
+        source_bucket: 'mixed',
         status: 'completed',
         external_ref: externalRef,
         prediction_id: predictionId,
         entry_id: entry.id,
         description: `Demo stake on "${prediction.title}"`,
-        meta: { kind: 'bet_lock', prediction_id: predictionId, entry_id: entry.id, escrow_lock_id: lockId, provider: PROVIDER },
+        meta: {
+          kind: 'bet_lock',
+          prediction_id: predictionId,
+          entry_id: entry.id,
+          escrow_lock_id: lockId,
+          provider: PROVIDER,
+          source_bucket_debits: bucketColumnsAvailable ? bucketDebit.debits : null,
+        },
       } as any).then(({ error }) => {
         if (error && (error as any).code !== '23505') {
           console.warn('[FCZ-BET] demo wallet tx insert error (non-fatal):', error);

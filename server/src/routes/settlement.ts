@@ -14,6 +14,7 @@ import { createNotification } from '../services/notifications';
 import { upsertSettlementResult, computeSettlementAggregates } from '../services/settlementResults';
 import { isCryptoAllowedForClient, isCryptoEnabledOnServer } from '../middleware/requireCryptoEnabled';
 import { creditCreatorEarnings } from '../services/walletBalanceAccounts';
+import { addToBucket, normalizeBucketBalances } from '../services/zaurumBuckets';
 
 const router = express.Router();
 
@@ -160,15 +161,31 @@ async function ensureDemoWalletRow(userId: string) {
     );
 }
 
-async function applyDemoDelta(userId: string, args: { availableDelta: number; reservedDelta: number }) {
+async function applyDemoDelta(userId: string, args: {
+  availableDelta: number;
+  reservedDelta: number;
+  sourceBucketCredit?: 'won_zaurum' | 'legacy_migrated_zaurum' | 'claim_zaurum' | 'creator_fee_zaurum' | null;
+}) {
   await ensureDemoWalletRow(userId);
   // CAS-style update to reduce races: fetch -> compute -> update with equality guards
-  const { data: w, error: wErr } = await supabase
+  let bucketColumnsAvailable = true;
+  let { data: w, error: wErr } = await supabase
     .from('wallets')
-    .select('available_balance,reserved_balance,demo_credits_balance')
+    .select('available_balance,reserved_balance,demo_credits_balance,claim_zaurum_balance,won_zaurum_balance,creator_fee_zaurum_balance,legacy_migrated_zaurum_balance')
     .eq('user_id', userId)
     .eq('currency', DEMO_CURRENCY)
     .maybeSingle();
+  if (wErr && isColumnSelectError(wErr)) {
+    bucketColumnsAvailable = false;
+    const fallbackRead = await supabase
+      .from('wallets')
+      .select('available_balance,reserved_balance,demo_credits_balance')
+      .eq('user_id', userId)
+      .eq('currency', DEMO_CURRENCY)
+      .maybeSingle();
+    w = fallbackRead.data as any;
+    wErr = fallbackRead.error as any;
+  }
   if (wErr) throw wErr;
   const prevAvail = Number((w as any)?.available_balance || 0);
   const prevRes = Number((w as any)?.reserved_balance || 0);
@@ -179,6 +196,11 @@ async function applyDemoDelta(userId: string, args: { availableDelta: number; re
   const nextResRaw = prevRes + args.reservedDelta;
   const nextRes = Math.max(0, nextResRaw);
   const nextDemo = prevDemo + args.availableDelta;
+  const prevBuckets = normalizeBucketBalances(w || {});
+  const nextBuckets =
+    bucketColumnsAvailable && args.sourceBucketCredit
+      ? addToBucket(prevBuckets, args.sourceBucketCredit, Math.max(0, args.availableDelta))
+      : prevBuckets;
   if (nextDemo < 0 || nextAvail < 0) {
     throw new Error('Demo wallet balance would become negative');
   }
@@ -191,12 +213,20 @@ async function applyDemoDelta(userId: string, args: { availableDelta: number; re
     });
   }
 
-  const { error: updErr } = await supabase
+  let updateQuery = supabase
     .from('wallets')
     .update({
       available_balance: nextAvail,
       reserved_balance: nextRes,
       demo_credits_balance: nextDemo,
+      ...(bucketColumnsAvailable
+        ? {
+            claim_zaurum_balance: nextBuckets.claim_zaurum,
+            won_zaurum_balance: nextBuckets.won_zaurum,
+            creator_fee_zaurum_balance: nextBuckets.creator_fee_zaurum,
+            legacy_migrated_zaurum_balance: nextBuckets.legacy_migrated_zaurum,
+          }
+        : {}),
       updated_at: new Date().toISOString()
     } as any)
     .eq('user_id', userId)
@@ -204,6 +234,14 @@ async function applyDemoDelta(userId: string, args: { availableDelta: number; re
     .eq('available_balance', prevAvail)
     .eq('reserved_balance', prevRes)
     .eq('demo_credits_balance', prevDemo);
+  if (bucketColumnsAvailable) {
+    updateQuery = updateQuery
+      .eq('claim_zaurum_balance', prevBuckets.claim_zaurum)
+      .eq('won_zaurum_balance', prevBuckets.won_zaurum)
+      .eq('creator_fee_zaurum_balance', prevBuckets.creator_fee_zaurum)
+      .eq('legacy_migrated_zaurum_balance', prevBuckets.legacy_migrated_zaurum);
+  }
+  const { error: updErr } = await updateQuery;
   if (updErr) throw updErr;
 }
 
@@ -448,10 +486,24 @@ export async function computeMerkleSettlementCryptoOnly(args: { predictionId: st
 
 async function upsertDemoTx(payload: any): Promise<boolean> {
   // Idempotency: only apply wallet balance deltas if this tx row is newly created
-  const { data, error } = await supabase
-    .from('wallet_transactions')
-    .upsert(payload, { onConflict: 'provider,external_ref', ignoreDuplicates: true } as any)
-    .select('id');
+  let currentPayload = { ...payload };
+  let data: any = null;
+  let error: any = null;
+  for (let i = 0; i < 2; i += 1) {
+    const out = await supabase
+      .from('wallet_transactions')
+      .upsert(currentPayload, { onConflict: 'provider,external_ref', ignoreDuplicates: true } as any)
+      .select('id');
+    data = out.data;
+    error = out.error;
+    if (!error) break;
+    if (isColumnSelectError(error) && 'source_bucket' in currentPayload) {
+      const { source_bucket: _drop, ...rest } = currentPayload;
+      currentPayload = rest;
+      continue;
+    }
+    break;
+  }
   if (error && (error as any).code !== '23505') {
     console.warn('[SETTLEMENT] demo tx upsert error (non-fatal):', error);
     return false;
@@ -604,17 +656,22 @@ export async function settleDemoRail(args: {
       provider: DEMO_PROVIDER,
         amount: entryPayout,
       currency: DEMO_CURRENCY,
+      source_bucket: 'won_zaurum',
       status: 'completed',
         external_ref: `demo_payout:${predictionId}:${entry.id}`,
       prediction_id: predictionId,
         entry_id: entry.id,
       description: `Demo payout for "${predictionTitle}"`,
-        meta: { kind: 'payout', provider: DEMO_PROVIDER, prediction_id: predictionId, entry_id: entry.id },
+        meta: { kind: 'payout', provider: DEMO_PROVIDER, prediction_id: predictionId, entry_id: entry.id, source_bucket: 'won_zaurum' },
     } as any);
     if (inserted) {
         // Only apply delta once per user (not per entry)
         if (userWinningEntries.indexOf(entry) === 0) {
-          await applyDemoDelta(userId, { availableDelta: payoutAmount, reservedDelta: -userTotalStake });
+          await applyDemoDelta(userId, {
+            availableDelta: payoutAmount,
+            reservedDelta: -userTotalStake,
+            sourceBucketCredit: 'won_zaurum',
+          });
       try {
             emitWalletUpdate({ userId, reason: 'payout', amountDelta: payoutAmount });
       } catch {}
@@ -710,7 +767,8 @@ export async function settleDemoRail(args: {
           description: `Creator earnings (demo settlement) for "${predictionTitle}"`,
           referenceType: 'settlement',
           referenceId: predictionId,
-          metadata: { kind: 'creator_fee', provider: DEMO_PROVIDER, prediction_id: predictionId, rail: 'demo' },
+          metadata: { kind: 'creator_fee', provider: DEMO_PROVIDER, prediction_id: predictionId, rail: 'demo', source_bucket: 'creator_fee_zaurum' },
+          sourceBucket: 'creator_fee_zaurum',
         });
         try {
           emitWalletUpdate({ userId: creatorId, reason: 'creator_fee_paid', amountDelta: demoResult.creatorFee });
@@ -1544,6 +1602,7 @@ router.post('/manual', async (req, res) => {
           provider: 'crypto-base-usdc',
           amount: payout,
           currency: 'USD' as const,
+          source_bucket: 'won_zaurum',
           status: 'completed' as const,
           // Idempotency: prevent duplicate win payouts if settlement is retried
           external_ref: `settlement:${predictionId}:payout:${winner.id}`,
@@ -1555,7 +1614,8 @@ router.post('/manual', async (req, res) => {
             prediction_entry_id: winner.id,
             original_stake: winnerStake,
             winning_option_id: winningOptionId,
-            prediction_title: prediction.title
+            prediction_title: prediction.title,
+            source_bucket: 'won_zaurum',
           }
         };
         console.log(`💰 [SETTLEMENT] Step 2a: Transaction data prepared:`, JSON.stringify(txData, null, 2));
@@ -1737,6 +1797,7 @@ router.post('/manual', async (req, res) => {
             rail: 'crypto',
             prediction_title: prediction.title,
           },
+          sourceBucket: 'creator_fee_zaurum',
         });
         console.log(`🎨 [SETTLEMENT] Step 1 COMPLETE - Result:`, JSON.stringify(creatorTxResult, null, 2));
         console.log('');

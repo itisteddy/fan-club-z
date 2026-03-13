@@ -147,6 +147,12 @@ async function handleSummaryRequest(
       creatorEarnings: 0,
       stakeBalance: demoAvailable,
       stakeReserved: demoReserved,
+      bucketBalances: {
+        claimZaurum: 0,
+        wonZaurum: 0,
+        creatorFeeZaurum: 0,
+        legacyMigratedZaurum: 0,
+      },
     };
     let creatorMilestones = {
       cumulativeCredited: 0,
@@ -181,11 +187,19 @@ async function handleSummaryRequest(
         creatorEarnings: Number((balanceAccounts.creatorEarnings ?? 0).toFixed(2)),
         stakeBalance: Number((balanceAccounts.stakeBalance ?? demoAvailable).toFixed(2)),
         creatorEarningsCumulative: Number((creatorMilestones.cumulativeCredited ?? 0).toFixed(2)),
+        claimZaurum: Number((balanceAccounts.bucketBalances?.claimZaurum ?? 0).toFixed(2)),
+        wonZaurum: Number((balanceAccounts.bucketBalances?.wonZaurum ?? 0).toFixed(2)),
+        creatorFeeZaurum: Number((balanceAccounts.bucketBalances?.creatorFeeZaurum ?? 0).toFixed(2)),
+        legacyMigratedZaurum: Number((balanceAccounts.bucketBalances?.legacyMigratedZaurum ?? 0).toFixed(2)),
       },
       demoCredits: Number((balanceAccounts.demoCredits ?? demoAvailable).toFixed(2)),
       creatorEarnings: Number((balanceAccounts.creatorEarnings ?? 0).toFixed(2)),
       stakeBalance: Number((balanceAccounts.stakeBalance ?? demoAvailable).toFixed(2)),
       creatorEarningsCumulative: Number((creatorMilestones.cumulativeCredited ?? 0).toFixed(2)),
+      claimZaurum: Number((balanceAccounts.bucketBalances?.claimZaurum ?? 0).toFixed(2)),
+      wonZaurum: Number((balanceAccounts.bucketBalances?.wonZaurum ?? 0).toFixed(2)),
+      creatorFeeZaurum: Number((balanceAccounts.bucketBalances?.creatorFeeZaurum ?? 0).toFixed(2)),
+      legacyMigratedZaurum: Number((balanceAccounts.bucketBalances?.legacyMigratedZaurum ?? 0).toFixed(2)),
       milestones: {
         first10ZaurumEarned: creatorMilestones.first10ZaurumEarned,
         first10Label: creatorMilestones.first10Label,

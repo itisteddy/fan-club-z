@@ -1,5 +1,6 @@
 import { ensureDbPool } from '../utils/dbPool';
 import { supabase } from '../config/database';
+import { normalizeBucketBalances } from './zaurumBuckets';
 
 const USD_CURRENCY = 'USD';
 const DEMO_CURRENCY = 'DEMO_USD';
@@ -9,6 +10,12 @@ export type BalanceAccountsSummary = {
   creatorEarnings: number;
   stakeBalance: number;
   stakeReserved: number;
+  bucketBalances: {
+    claimZaurum: number;
+    wonZaurum: number;
+    creatorFeeZaurum: number;
+    legacyMigratedZaurum: number;
+  };
 };
 
 export type CreatorEarningsMilestoneSummary = {
@@ -47,11 +54,32 @@ async function ensureWalletRowPg(client: any, userId: string, currency: string) 
 }
 
 export async function getWalletBalanceAccountsSummary(userId: string): Promise<BalanceAccountsSummary> {
-  const { data: wallets, error } = await supabase
+  let { data: wallets, error } = await supabase
     .from('wallets')
-    .select('currency, available_balance, reserved_balance, demo_credits_balance, creator_earnings_balance, stake_balance')
+    .select(
+      'currency, available_balance, reserved_balance, demo_credits_balance, creator_earnings_balance, stake_balance, claim_zaurum_balance, won_zaurum_balance, creator_fee_zaurum_balance, legacy_migrated_zaurum_balance'
+    )
     .eq('user_id', userId)
     .in('currency', [USD_CURRENCY, DEMO_CURRENCY]);
+
+  const message = String((error as any)?.message || '').toLowerCase();
+  const isMissingBucketColumns = Boolean(
+    error &&
+      (((error as any).code === '42703' || (error as any).code === 'PGRST204') ||
+        message.includes('claim_zaurum_balance') ||
+        message.includes('won_zaurum_balance') ||
+        message.includes('creator_fee_zaurum_balance') ||
+        message.includes('legacy_migrated_zaurum_balance'))
+  );
+  if (isMissingBucketColumns) {
+    const fallback = await supabase
+      .from('wallets')
+      .select('currency, available_balance, reserved_balance, demo_credits_balance, creator_earnings_balance, stake_balance')
+      .eq('user_id', userId)
+      .in('currency', [USD_CURRENCY, DEMO_CURRENCY]);
+    wallets = fallback.data as any;
+    error = fallback.error as any;
+  }
 
   if (error) {
     throw error;
@@ -65,6 +93,12 @@ export async function getWalletBalanceAccountsSummary(userId: string): Promise<B
     creatorEarnings: round8(toNumber(usd?.creator_earnings_balance)),
     stakeBalance: round8(toNumber(usd?.stake_balance ?? usd?.available_balance)),
     stakeReserved: round8(toNumber(usd?.reserved_balance)),
+    bucketBalances: {
+      claimZaurum: round8(toNumber((demo as any)?.claim_zaurum_balance)),
+      wonZaurum: round8(toNumber((demo as any)?.won_zaurum_balance)),
+      creatorFeeZaurum: round8(toNumber((demo as any)?.creator_fee_zaurum_balance)),
+      legacyMigratedZaurum: round8(toNumber((demo as any)?.legacy_migrated_zaurum_balance)),
+    },
   };
 }
 
@@ -107,6 +141,7 @@ export async function creditCreatorEarnings(args: {
   referenceId?: string | null;
   currency?: string;
   metadata?: Record<string, unknown>;
+  sourceBucket?: 'creator_fee_zaurum' | null;
 }) {
   const amount = round8(args.amount);
   if (!(amount > 0)) {
@@ -123,30 +158,52 @@ export async function creditCreatorEarnings(args: {
     await client.query('BEGIN');
     await ensureWalletRowPg(client, args.userId, USD_CURRENCY);
 
-    const txInsert = await client.query(
-      `INSERT INTO wallet_transactions (
-         user_id, direction, type, channel, provider, amount, currency, status, external_ref,
-         prediction_id, description, meta, metadata, from_account, to_account, reference_type, reference_id, created_at
-       ) VALUES (
-         $1, 'credit', 'deposit', 'creator_fee', $2, $3, $4, 'completed', $5,
-         $6, $7, $8::jsonb, $9::jsonb, 'SYSTEM', 'CREATOR_EARNINGS', $10, $11, NOW()
-       )
-       ON CONFLICT (provider, external_ref) DO NOTHING
-       RETURNING id`,
-      [
-        args.userId,
-        args.provider,
-        amount,
-        args.currency || USD_CURRENCY,
-        args.externalRef,
-        args.predictionId || null,
-        args.description,
-        JSON.stringify(args.metadata || {}),
-        JSON.stringify(args.metadata || {}),
-        args.referenceType || 'settlement',
-        args.referenceId || args.predictionId || null,
-      ]
-    );
+    const txParams = [
+      args.userId,
+      args.provider,
+      amount,
+      args.currency || USD_CURRENCY,
+      args.externalRef,
+      args.predictionId || null,
+      args.description,
+      JSON.stringify({ ...(args.metadata || {}), source_bucket: args.sourceBucket || 'creator_fee_zaurum' }),
+      JSON.stringify({ ...(args.metadata || {}), source_bucket: args.sourceBucket || 'creator_fee_zaurum' }),
+      args.referenceType || 'settlement',
+      args.referenceId || args.predictionId || null,
+      args.sourceBucket || 'creator_fee_zaurum',
+    ];
+    let txInsert;
+    try {
+      txInsert = await client.query(
+        `INSERT INTO wallet_transactions (
+           user_id, direction, type, channel, provider, amount, currency, status, external_ref,
+           prediction_id, description, meta, metadata, from_account, to_account, reference_type, reference_id, source_bucket, created_at
+         ) VALUES (
+           $1, 'credit', 'deposit', 'creator_fee', $2, $3, $4, 'completed', $5,
+           $6, $7, $8::jsonb, $9::jsonb, 'SYSTEM', 'CREATOR_EARNINGS', $10, $11, $12, NOW()
+         )
+         ON CONFLICT (provider, external_ref) DO NOTHING
+         RETURNING id`,
+        txParams
+      );
+    } catch (insertError: any) {
+      const code = String(insertError?.code || '');
+      const msg = String(insertError?.message || '').toLowerCase();
+      const missingSourceBucket = code === '42703' || msg.includes('source_bucket');
+      if (!missingSourceBucket) throw insertError;
+      txInsert = await client.query(
+        `INSERT INTO wallet_transactions (
+           user_id, direction, type, channel, provider, amount, currency, status, external_ref,
+           prediction_id, description, meta, metadata, from_account, to_account, reference_type, reference_id, created_at
+         ) VALUES (
+           $1, 'credit', 'deposit', 'creator_fee', $2, $3, $4, 'completed', $5,
+           $6, $7, $8::jsonb, $9::jsonb, 'SYSTEM', 'CREATOR_EARNINGS', $10, $11, NOW()
+         )
+         ON CONFLICT (provider, external_ref) DO NOTHING
+         RETURNING id`,
+        txParams.slice(0, 11)
+      );
+    }
 
     if (txInsert.rowCount === 0) {
       // Idempotent replay: do not double-credit.
@@ -167,28 +224,63 @@ export async function creditCreatorEarnings(args: {
       };
     }
 
-    const locked = await client.query(
-      `SELECT available_balance, creator_earnings_balance, stake_balance, reserved_balance
-       FROM wallets
-       WHERE user_id = $1 AND currency = $2
-       FOR UPDATE`,
-      [args.userId, USD_CURRENCY]
-    );
+    let locked;
+    try {
+      locked = await client.query(
+        `SELECT available_balance, creator_earnings_balance, stake_balance, reserved_balance, creator_fee_zaurum_balance
+         FROM wallets
+         WHERE user_id = $1 AND currency = $2
+         FOR UPDATE`,
+        [args.userId, USD_CURRENCY]
+      );
+    } catch (err: any) {
+      const code = String(err?.code || '');
+      const msg = String(err?.message || '').toLowerCase();
+      const missingBucketColumn = code === '42703' || msg.includes('creator_fee_zaurum_balance');
+      if (!missingBucketColumn) throw err;
+      locked = await client.query(
+        `SELECT available_balance, creator_earnings_balance, stake_balance, reserved_balance
+         FROM wallets
+         WHERE user_id = $1 AND currency = $2
+         FOR UPDATE`,
+        [args.userId, USD_CURRENCY]
+      );
+    }
     const row = locked.rows[0];
     if (!row) {
       throw new WalletBalanceError('WALLET_NOT_FOUND', 'Wallet not found', 404);
     }
 
     const nextCreatorEarnings = round8(toNumber(row.creator_earnings_balance) + amount);
-
-    await client.query(
-      `UPDATE wallets
-       SET creator_earnings_balance = $3,
-           stake_balance = COALESCE(stake_balance, available_balance, 0),
-           updated_at = NOW()
-       WHERE user_id = $1 AND currency = $2`,
-      [args.userId, USD_CURRENCY, nextCreatorEarnings]
+    const bucketBalances = normalizeBucketBalances(row || {});
+    const nextCreatorFeeBucket = round8(
+      toNumber(bucketBalances.creator_fee_zaurum) + amount
     );
+
+    try {
+      await client.query(
+        `UPDATE wallets
+         SET creator_earnings_balance = $3,
+             creator_fee_zaurum_balance = $4,
+             stake_balance = COALESCE(stake_balance, available_balance, 0),
+             updated_at = NOW()
+         WHERE user_id = $1 AND currency = $2`,
+        [args.userId, USD_CURRENCY, nextCreatorEarnings, nextCreatorFeeBucket]
+      );
+    } catch (walletUpdateError: any) {
+      const code = String(walletUpdateError?.code || '');
+      const msg = String(walletUpdateError?.message || '').toLowerCase();
+      const missingBucketColumn = code === '42703' || msg.includes('creator_fee_zaurum_balance');
+      if (!missingBucketColumn) throw walletUpdateError;
+      await client.query(
+        `UPDATE wallets
+         SET creator_earnings_balance = $3,
+             stake_balance = COALESCE(stake_balance, available_balance, 0),
+             updated_at = NOW()
+         WHERE user_id = $1 AND currency = $2`,
+        [args.userId, USD_CURRENCY, nextCreatorEarnings]
+      );
+    }
 
     await client.query('COMMIT');
 

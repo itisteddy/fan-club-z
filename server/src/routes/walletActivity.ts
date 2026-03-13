@@ -147,26 +147,26 @@ walletActivity.get('/activity', async (req, res) => {
         if (isDemo) {
           if (metaKind === 'demo_faucet') {
             kind = 'deposit';
-            description = description || 'Demo credits added';
+            description = description || 'Zaurum claimed';
           } else if (metaKind === 'bet_lock' || tx.type === 'bet_lock') {
             kind = 'bet_placed';
-            description = description || 'Demo stake placed';
+            description = description || 'Zaurum stake placed';
           } else if (metaKind === 'payout' || tx.type === 'payout') {
             kind = 'win';
-            description = description || 'Demo win payout';
+            description = description || 'Zaurum payout';
           } else if (metaKind === 'settlement_loss' || metaKind === 'loss') {
             // Support both old 'settlement_loss' and new 'loss' meta.kind values
             kind = 'loss';
-            description = description || 'Demo loss';
+            description = description || 'Settlement loss';
           } else if (metaKind === 'creator_fee') {
             kind = 'creator_fee';
-            description = description || 'Creator earnings (demo)';
+            description = description || 'Creator earnings';
           } else if (metaKind === 'platform_fee') {
             kind = 'platform_fee';
-            description = description || 'Platform fee (demo)';
+            description = description || 'Platform fee';
           } else if (tx.type === 'adjustment' && tx.direction === 'credit') {
             kind = 'deposit';
-            description = description || 'Demo credits added';
+            description = description || 'Zaurum credited';
           }
         }
 
@@ -424,4 +424,3 @@ walletActivity.get('/activity', async (req, res) => {
     return res.json({ items: [] });
   }
 });
-
