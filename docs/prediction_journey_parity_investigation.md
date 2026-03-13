@@ -155,10 +155,17 @@ Local HEAD: `f063d1fd` (before fix)
 ### Fix applied
 - Added schema-tolerant loader in `server/src/routes/settlement.ts` for `/manual/merkle`:
   - primary explicit select (existing columns)
-  - fallback select without optional resolution columns on column-select errors
+  - fallback select with minimal stable columns on column-select errors
 - Corrected error mapping:
   - lookup/query error -> `500 database_error`
   - only true missing prediction -> `404 Prediction not found`
+
+### Additional evidence from live rerun
+- On live staging SHA `833ac027...`, authenticated test showed:
+  - `/manual` => `200`
+  - `/manual/merkle` => `500 database_error`
+- This confirmed fallback still selected a missing column (`winning_option_id`) in staging schema.
+- Follow-up patch narrowed fallback select to schema-stable columns only.
 
 ### Scope safety
 - No route rename.

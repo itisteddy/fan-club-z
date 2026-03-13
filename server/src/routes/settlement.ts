@@ -47,7 +47,7 @@ async function loadPredictionForManualMerkle(predictionId: string) {
   const primarySelect =
     'id, creator_id, title, status, settled_at, winning_option_id, resolution_reason, resolution_source_url, platform_fee_percentage, creator_fee_percentage';
   const fallbackSelect =
-    'id, creator_id, title, status, settled_at, winning_option_id, platform_fee_percentage, creator_fee_percentage';
+    'id, creator_id, title, status, platform_fee_percentage, creator_fee_percentage';
 
   const primary = await supabase
     .from('predictions')

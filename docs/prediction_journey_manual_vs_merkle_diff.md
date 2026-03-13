@@ -30,12 +30,13 @@ Both paths require the same identity tuple for prediction resolution.
   - `select('id, creator_id, title, status, settled_at, winning_option_id, resolution_reason, resolution_source_url, platform_fee_percentage, creator_fee_percentage')`
   - Any select error (including missing-column schema drift) was collapsed into `404 Prediction not found`
 
-### Why this caused false 404
+### Why this caused false 404/500
 
 For the same valid prediction:
 - `/manual` could resolve because `select('*')` is tolerant to optional-column drift
-- `/manual/merkle` could fail at query time if one explicitly selected optional column was absent/mismatched in staging schema
-- Handler then returned the same `404 Prediction not found`, masking query failure as missing entity
+- `/manual/merkle` could fail at query time if explicitly selected columns were absent in staging schema (confirmed with `winning_option_id` drift)
+- Handler previously returned `404 Prediction not found`, masking query failure as missing entity
+- First fix changed this to `500 database_error`; follow-up narrowed fallback select so route can proceed on older schema
 
 ## 4) Settlement behavior differences (intended)
 
@@ -59,7 +60,7 @@ These behavior differences are expected and not the parity bug root cause.
 
 - Added schema-tolerant prediction loader for `/manual/merkle`:
   - try primary select (includes `resolution_*`)
-  - if primary fails due to column-select error (`42703`/`PGRST204`/column-missing message), retry with fallback select excluding optional resolution columns
+  - if primary fails due to column-select error (`42703`/`PGRST204`/column-missing message), retry with minimal fallback select (`id, creator_id, title, status, platform_fee_percentage, creator_fee_percentage`)
 - Error mapping corrected:
   - true query failure -> `500 database_error`
   - only missing row -> `404 Prediction not found`
