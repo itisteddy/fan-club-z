@@ -32,6 +32,7 @@ import { usePaystackStatus, useFiatSummary } from '@/hooks/useFiatWallet';
 import { FiatDepositSheet } from '@/components/wallet/FiatDepositSheet';
 import { FiatWithdrawalSheet } from '@/components/wallet/FiatWithdrawalSheet';
 import ZaurumMark from '@/components/ui/ZaurumMark';
+import { ZaurumAmount, formatZaurumNumber as formatZaurumNumeric } from '@/components/ui/ZaurumAmount';
 import { Runtime } from '@/config/runtime';
 import { policy as storeSafePolicy } from '@/lib/storeSafePolicy';
 import { resolveWalletVariant } from '@/config/walletVariant';
@@ -281,18 +282,10 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
       maximumFractionDigits: compact ? 2 : 2,
     }).format(absValue);
     const sign = opts?.showSign ? (numericAmount > 0 ? '+' : numericAmount < 0 ? '-' : '') : (numericAmount < 0 ? '-' : '');
-    return `${sign}${formatted} Zaurum`;
+    return `${sign}${formatted}`;
   }, []);
   const formatZaurumNumber = useCallback((amount: number, opts?: { compact?: boolean; showSign?: boolean }) => {
-    const numericAmount = Number.isFinite(amount) ? amount : 0;
-    const compact = opts?.compact ?? false;
-    const absValue = Math.abs(numericAmount);
-    const formatted = new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: compact ? 0 : 2,
-      maximumFractionDigits: compact ? 2 : 2,
-    }).format(absValue);
-    const sign = opts?.showSign ? (numericAmount > 0 ? '+' : numericAmount < 0 ? '-' : '') : (numericAmount < 0 ? '-' : '');
-    return `${sign}${formatted}`;
+    return formatZaurumNumeric(amount, opts);
   }, []);
 
   const recordOnchainTransactions = useCallback(async () => {
@@ -828,7 +821,18 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                           </div>
                           <div className="text-right">
                             <p className={`text-sm font-semibold ${toneClass(tx.tone)}`}>
-                              {tx.display}
+                              {isDemoMode && isInAppValueKind ? (
+                                <ZaurumAmount
+                                  amount={tx.tone === 'debit' ? -tx.absAmount : tx.absAmount}
+                                  compact
+                                  showSign={tx.tone === 'credit' || tx.tone === 'debit'}
+                                  size={11}
+                                  className="justify-end"
+                                  amountClassName="font-mono"
+                                />
+                              ) : (
+                                tx.display
+                              )}
                             </p>
                             {activity.txHash && /^0x[a-fA-F0-9]{64}$/.test(String(activity.txHash)) && (
                               <a

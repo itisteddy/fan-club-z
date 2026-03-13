@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Users, Clock, DollarSign, BarChart3, Settings, Trash2, Eye, Share2, Edit3, CheckCircle, Loader2, Gavel, AlertTriangle, Image as ImageIcon } from 'lucide-react';
+import { X, Users, Clock, BarChart3, Settings, Trash2, Eye, Share2, Edit3, CheckCircle, Loader2, Gavel, AlertTriangle, Image as ImageIcon } from 'lucide-react';
 import { usePredictionStore, ActivityItem, Participant } from '../../store/predictionStore';
 import { useToast } from '../../hooks/use-toast';
 import { useAuthStore } from '../../store/authStore';
@@ -15,6 +15,8 @@ import { buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
 import { uploadPredictionCoverImage, COVER_IMAGE_ACCEPT } from '@/lib/predictionCoverImage';
 import { useAuthSession } from '@/providers/AuthSessionProvider';
 import CoverCropModal from '@/components/modals/CoverCropModal';
+import { ZaurumAmount } from '@/components/ui/ZaurumAmount';
+import ZaurumMark from '@/components/ui/ZaurumMark';
 
 interface ManagePredictionModalProps {
   isOpen: boolean;
@@ -420,10 +422,12 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-gray-50 rounded-lg p-4">
             <div className="flex items-center gap-2 mb-2">
-              <DollarSign className="w-4 h-4 text-emerald-600" />
-              <span className="text-sm font-medium text-gray-700">Total Pool</span>
+              <ZaurumMark size={12} />
+              <span className="text-sm font-medium text-gray-700">Total Pool (Zaurum)</span>
             </div>
-            <p className="text-2xl font-bold text-gray-900">${totalPool.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-gray-900">
+              <ZaurumAmount amount={totalPool} size={16} />
+            </p>
           </div>
           
           <div className="bg-gray-50 rounded-lg p-4">
@@ -444,10 +448,12 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
           
           <div className="bg-gray-50 rounded-lg p-4">
             <div className="flex items-center gap-2 mb-2">
-              <DollarSign className="w-4 h-4 text-emerald-600" />
-              <span className="text-sm font-medium text-gray-700">Est. Earnings</span>
+              <ZaurumMark size={12} />
+              <span className="text-sm font-medium text-gray-700">Est. Earnings (Zaurum)</span>
             </div>
-            <p className="text-2xl font-bold text-emerald-600">${estimatedEarnings.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-emerald-600">
+              <ZaurumAmount amount={estimatedEarnings} size={16} />
+            </p>
           </div>
         </div>
 
@@ -623,7 +629,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
                   </div>
                   {activity.amount && (
                     <span className="text-sm font-semibold text-emerald-600">
-                      ${activity.amount.toLocaleString()}
+                      <ZaurumAmount amount={Number(activity.amount || 0)} size={11} />
                     </span>
                   )}
                 </div>
@@ -767,7 +773,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
                   </div>
                 </div>
                 <span className="text-sm font-semibold text-gray-900">
-                  ${participant.amount.toLocaleString()}
+                  <ZaurumAmount amount={Number(participant.amount || 0)} size={11} />
                 </span>
               </div>
             ))}

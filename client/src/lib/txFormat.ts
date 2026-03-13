@@ -104,7 +104,7 @@ export function formatTxAmount(args: {
     ? `${new Intl.NumberFormat('en-US', {
         minimumFractionDigits: compact ? 0 : 2,
         maximumFractionDigits: compact ? 2 : 2,
-      }).format(absAmount)} Zaurum`
+      }).format(absAmount)}`
     : formatCurrency(absAmount, { compact, currency });
 
   // Add sign based on tone

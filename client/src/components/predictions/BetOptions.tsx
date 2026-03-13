@@ -1,5 +1,7 @@
 import React from 'react';
-import { DollarSign, TrendingUp } from 'lucide-react';
+import { TrendingUp } from 'lucide-react';
+import ZaurumMark from '@/components/ui/ZaurumMark';
+import { ZaurumAmount } from '@/components/ui/ZaurumAmount';
 
 export type BetOption = {
   id: string;
@@ -84,7 +86,9 @@ export default function BetOptions({
             Stake Amount (Zaurum)
           </label>
           <div className="relative">
-            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-muted-foreground pointer-events-none" />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              <ZaurumMark size={14} className="text-muted-foreground" />
+            </span>
             <input
               id="stake-input"
               type="number"
@@ -105,8 +109,9 @@ export default function BetOptions({
           
           {/* Balance & Error Messages */}
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">
-              Available: {balance.toLocaleString()} Zaurum
+            <span className="text-muted-foreground inline-flex items-center gap-1">
+              <span>Available:</span>
+              <ZaurumAmount amount={balance} compact size={11} />
             </span>
             {insufficientBalance && (
               <span id="stake-error" className="text-destructive font-medium" role="alert">

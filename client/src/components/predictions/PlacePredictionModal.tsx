@@ -5,6 +5,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card, CardContent } from '../ui/card';
 import ZaurumMark from '../ui/ZaurumMark';
+import { formatZaurumNumber as formatZaurumNumeric } from '@/components/ui/ZaurumAmount';
 import { Prediction } from '../../store/predictionStore';
 import { usePredictionStore } from '../../store/predictionStore';
 import { useAuthStore } from '../../store/authStore';
@@ -206,26 +207,10 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
   const displayBalance = isFiatMode ? fiatAvailable : (isCryptoMode ? escrowAvailable : zaurumAvailable);
   const displayCurrency: 'USD' | 'NGN' = isFiatMode ? 'NGN' : 'USD';
   const formatZaurumAmount = (amount: number, opts?: { compact?: boolean; showSign?: boolean }) => {
-    const numericAmount = Number.isFinite(amount) ? amount : 0;
-    const compact = opts?.compact ?? false;
-    const absValue = Math.abs(numericAmount);
-    const formatted = new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: compact ? 0 : 2,
-      maximumFractionDigits: compact ? 2 : 2,
-    }).format(absValue);
-    const sign = opts?.showSign ? (numericAmount > 0 ? '+' : numericAmount < 0 ? '-' : '') : (numericAmount < 0 ? '-' : '');
-    return `${sign}${formatted} Zaurum`;
+    return formatZaurumNumeric(amount, opts);
   };
   const formatZaurumNumber = (amount: number, opts?: { compact?: boolean; showSign?: boolean }) => {
-    const numericAmount = Number.isFinite(amount) ? amount : 0;
-    const compact = opts?.compact ?? false;
-    const absValue = Math.abs(numericAmount);
-    const formatted = new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: compact ? 0 : 2,
-      maximumFractionDigits: compact ? 2 : 2,
-    }).format(absValue);
-    const sign = opts?.showSign ? (numericAmount > 0 ? '+' : numericAmount < 0 ? '-' : '') : (numericAmount < 0 ? '-' : '');
-    return `${sign}${formatted}`;
+    return formatZaurumNumeric(amount, opts);
   };
   const formatModeAmount = (amount: number, opts?: { compact?: boolean; showSign?: boolean }) => {
     if (isFiatMode) {

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Heart, MessageCircle, DollarSign, TrendingUp } from 'lucide-react';
+import { Heart, MessageCircle, TrendingUp } from 'lucide-react';
 import { useAccount, useSwitchChain } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
 import AuthRequiredState from '../ui/empty/AuthRequiredState';
@@ -8,6 +8,8 @@ import { selectEscrowAvailableUSD } from '@/lib/balance/balanceSelector';
 import { useWalletStore } from '@/store/walletStore';
 import { t } from '@/lib/lexicon';
 import { isCryptoEnabledForClient } from '@/lib/cryptoFeatureFlags';
+import ZaurumMark from '@/components/ui/ZaurumMark';
+import { ZaurumAmount } from '@/components/ui/ZaurumAmount';
 
 interface PredictionOption {
   id: string;
@@ -169,13 +171,15 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
                   Stake Amount (Zaurum)
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <ZaurumMark size={14} className="text-gray-500" />
+                  </span>
                   <input
                     type="number"
                     value={stakeAmount}
                     onChange={(e) => onStakeChange(e.target.value)}
                     placeholder="0.00"
-                    className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    className="w-full pl-9 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                     min="0"
                     step="0.01"
                   />
@@ -183,8 +187,18 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
                 <p className="text-sm text-gray-600 mt-1 flex items-center justify-between">
                   <span>
                     {BASE_ENABLED && BETS_ONCHAIN
-                      ? `Available in escrow: ${Math.max(0, escrowAvailable).toFixed(2)} Zaurum`
-                      : `Available: ${(userBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Zaurum`
+                      ? (
+                        <span className="inline-flex items-center gap-1">
+                          <span>Available in escrow:</span>
+                          <ZaurumAmount amount={Math.max(0, escrowAvailable)} size={11} />
+                        </span>
+                      )
+                      : (
+                        <span className="inline-flex items-center gap-1">
+                          <span>Available:</span>
+                          <ZaurumAmount amount={userBalance || 0} size={11} />
+                        </span>
+                      )
                     }
                   </span>
                   {(BASE_ENABLED && BETS_ONCHAIN ? needsFunds : parseFloat(stakeAmount) > userBalance) && (
@@ -234,7 +248,11 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
                   className="w-full py-4 rounded-xl font-bold text-lg transition-all transform bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 active:scale-[0.98] shadow-lg hover:shadow-xl"
                   style={{ position: 'relative', zIndex: 10 }}
                 >
-                  Add funds (need ${Math.max(0, stakeValue - escrowAvailable).toFixed(2)} Zaurum)
+                  <span className="inline-flex items-center gap-1">
+                    <span>Add funds (need</span>
+                    <ZaurumAmount amount={Math.max(0, stakeValue - escrowAvailable)} size={12} />
+                    <span>)</span>
+                  </span>
                 </button>
               ) : (
                 <button
@@ -260,7 +278,10 @@ const PredictionActionPanel: React.FC<PredictionActionPanelProps> = ({
                   ) : parseFloat(stakeAmount) <= 0 || !stakeAmount ? (
                     'Enter Amount'
                   ) : (
-                    `${t('betVerb')}: ${parseFloat(stakeAmount).toFixed(2)} Zaurum`
+                    <span className="inline-flex items-center gap-1">
+                      <span>{t('betVerb')}:</span>
+                      <ZaurumAmount amount={parseFloat(stakeAmount) || 0} size={12} />
+                    </span>
                   )}
                 </button>
               )}

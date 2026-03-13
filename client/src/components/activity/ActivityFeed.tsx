@@ -15,6 +15,7 @@ import {
 import { useActivityFeed, ActivityItem } from '../../hooks/useActivityFeed';
 import { formatTimeAgo } from '@/lib/format';
 import { t } from '@/lib/lexicon';
+import { ZaurumAmount } from '@/components/ui/ZaurumAmount';
 
 interface ActivityFeedProps {
   predictionId: string;
@@ -42,14 +43,6 @@ function ActivityItemComponent({ item }: ActivityItemComponentProps) {
     navigate(`/profile/${encodeURIComponent(actorId)}`);
   };
 
-  const formatZaurumCompact = (amount: number) => {
-    const numeric = Number(amount || 0);
-    return `${new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    }).format(numeric)} Zaurum`;
-  };
-
   const getActivityIcon = (type: string) => {
     if (type.startsWith('comment')) return MessageCircle;
     if (type.startsWith('entry')) return Target;
@@ -73,7 +66,12 @@ function ActivityItemComponent({ item }: ActivityItemComponentProps) {
       case 'entry.create':
         return {
           message: `${actorName} locked a ${t('bet')}`,
-          details: `${formatZaurumCompact(Number(data.amount || 0))}${data.option_label ? ` on ${data.option_label}` : ''}`,
+          details: (
+            <span className="inline-flex items-center gap-1">
+              <ZaurumAmount amount={Number(data.amount || 0)} size={11} />
+              {data.option_label ? <span>on {data.option_label}</span> : null}
+            </span>
+          ),
           icon: Target
         };
       
@@ -100,25 +98,35 @@ function ActivityItemComponent({ item }: ActivityItemComponentProps) {
       case 'wallet.unlock':
         return {
           message: 'Escrow funds released',
-          details: data.amount ? formatZaurumCompact(Number(data.amount || 0)) : '',
+          details: data.amount ? <ZaurumAmount amount={Number(data.amount || 0)} size={11} /> : '',
           icon: Gift,
         };
       case 'wallet.payout':
         return {
           message: 'Settlement payout received',
-          details: data.amount ? `${formatZaurumCompact(Number(data.amount || 0))}${data.prediction_title ? ` · ${data.prediction_title}` : ''}` : (data.prediction_title ?? ''),
+          details: data.amount ? (
+            <span className="inline-flex items-center gap-1">
+              <ZaurumAmount amount={Number(data.amount || 0)} size={11} />
+              {data.prediction_title ? <span>· {data.prediction_title}</span> : null}
+            </span>
+          ) : (data.prediction_title ?? ''),
           icon: Gift,
         };
       case 'wallet.platform_fee':
         return {
           message: 'Platform fee credited',
-          details: data.amount ? formatZaurumCompact(Number(data.amount || 0)) : '',
+          details: data.amount ? <ZaurumAmount amount={Number(data.amount || 0)} size={11} /> : '',
           icon: Gift,
         };
       case 'wallet.creator_fee':
         return {
           message: 'Creator earnings received',
-          details: data.amount ? `${formatZaurumCompact(Number(data.amount || 0))}${data.prediction_title ? ` · ${data.prediction_title}` : ''}` : (data.prediction_title ?? ''),
+          details: data.amount ? (
+            <span className="inline-flex items-center gap-1">
+              <ZaurumAmount amount={Number(data.amount || 0)} size={11} />
+              {data.prediction_title ? <span>· {data.prediction_title}</span> : null}
+            </span>
+          ) : (data.prediction_title ?? ''),
           icon: Gift,
         };
       default:

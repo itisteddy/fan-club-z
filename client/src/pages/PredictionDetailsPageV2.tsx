@@ -48,6 +48,7 @@ import { isFeatureEnabled } from '@/config/featureFlags';
 import { getPayoutPreview, getPreOddsMultiple } from '@fanclubz/shared';
 import { ReportContentModal } from '@/components/ugc/ReportContentModal';
 import ZaurumMark from '@/components/ui/ZaurumMark';
+import { ZaurumAmount, formatZaurumNumber as formatZaurumNumeric } from '@/components/ui/ZaurumAmount';
 import { buildPredictionCanonicalPath, buildPredictionCanonicalUrl } from '@/lib/predictionUrls';
 import { normalizeCommentTargetId } from '@/lib/commentDeepLink';
 import { suppressScrollToTop, unsuppressScrollToTop } from '@/utils/scroll';
@@ -452,15 +453,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   // User balance - source depends on funding mode
   const userBalance = isAuthenticated ? displayAvailable : 0;
   const formatZaurumAmount = useCallback((amount: number, opts?: { compact?: boolean; showSign?: boolean }) => {
-    const numericAmount = Number.isFinite(amount) ? amount : 0;
-    const compact = opts?.compact ?? false;
-    const absValue = Math.abs(numericAmount);
-    const formatted = new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: compact ? 0 : 2,
-      maximumFractionDigits: compact ? 2 : 2,
-    }).format(absValue);
-    const sign = opts?.showSign ? (numericAmount > 0 ? '+' : numericAmount < 0 ? '-' : '') : (numericAmount < 0 ? '-' : '');
-    return `${sign}${formatted} Zaurum`;
+    return formatZaurumNumeric(amount, opts);
   }, []);
   const formatStakeModeAmount = useCallback((amount: number, opts?: { compact?: boolean; showSign?: boolean }) => {
     if (isFiatMode) {
@@ -472,15 +465,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
     return formatCurrency(amount, { compact: opts?.compact ?? false, currency: 'USD', showSign: opts?.showSign ?? false });
   }, [formatZaurumAmount, isDemoMode, isFiatMode]);
   const formatZaurumNumber = useCallback((amount: number, opts?: { compact?: boolean; showSign?: boolean }) => {
-    const numericAmount = Number.isFinite(amount) ? amount : 0;
-    const compact = opts?.compact ?? false;
-    const absValue = Math.abs(numericAmount);
-    const formatted = new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: compact ? 0 : 2,
-      maximumFractionDigits: compact ? 2 : 2,
-    }).format(absValue);
-    const sign = opts?.showSign ? (numericAmount > 0 ? '+' : numericAmount < 0 ? '-' : '') : (numericAmount < 0 ? '-' : '');
-    return `${sign}${formatted}`;
+    return formatZaurumNumeric(amount, opts);
   }, []);
 
   // Log balance for debugging
@@ -1487,9 +1472,20 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
             ? t('betVerb')
             : (need > 0
                 ? (isZaurumStakeMode
-                    ? `Claim Zaurum (need ${formatZaurumAmount(need)})`
+                    ? (
+                      <span className="inline-flex items-center gap-1">
+                        <span>Claim Zaurum (need</span>
+                        <ZaurumAmount amount={need} size={11} />
+                        <span>)</span>
+                      </span>
+                    )
                     : (isFiatMode ? `Deposit NGN (need ₦${need.toFixed(0)})` : `Add funds (need ${need.toFixed(2)} USDC)`))
-                : `${t('betVerb')}: ${formatStakeModeAmount(amt)}`);
+                : (isZaurumStakeMode ? (
+                    <span className="inline-flex items-center gap-1">
+                      <span>{t('betVerb')}:</span>
+                      <ZaurumAmount amount={amt} size={11} />
+                    </span>
+                  ) : `${t('betVerb')}: ${formatStakeModeAmount(amt)}`));
           const canBet = !!stakeAmount && amt > 0;
           return (
             <StickyBetBar

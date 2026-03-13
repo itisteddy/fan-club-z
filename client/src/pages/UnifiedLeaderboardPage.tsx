@@ -16,6 +16,7 @@ import { cn } from '../utils/cn';
 import { KeyboardNavigation, AriaUtils } from '../utils/accessibility';
 import { t } from '@/lib/lexicon';
 import { isReferralEnabled, fetchReferralLeaderboard, type ReferralLeaderboardEntry } from '@/lib/referral';
+import { ZaurumAmount } from '@/components/ui/ZaurumAmount';
 
 interface LeaderboardUser {
   id: string;
@@ -196,7 +197,15 @@ const UnifiedLeaderboardPage: React.FC = () => {
       case 'profit':
         const profit = user.total_profit || 0;
         return {
-          primary: formatZaurumCompact(profit),
+          primary: (
+            <ZaurumAmount
+              amount={profit}
+              compact
+              showSign
+              size={11}
+              className="justify-end"
+            />
+          ),
           color: profit > 0 ? 'text-emerald-600' : profit < 0 ? 'text-red-600' : 'text-gray-600'
         };
       case 'winrate':
@@ -586,12 +595,3 @@ const UnifiedLeaderboardPage: React.FC = () => {
 };
 
 export default UnifiedLeaderboardPage;
-  const formatZaurumCompact = (value: number) => {
-    const amount = Number(value || 0);
-    const sign = amount > 0 ? '+' : amount < 0 ? '−' : '';
-    const compact = new Intl.NumberFormat('en-US', {
-      notation: 'compact',
-      maximumFractionDigits: 2,
-    }).format(Math.abs(amount));
-    return `${sign}${compact} Z`;
-  };

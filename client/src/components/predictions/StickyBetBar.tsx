@@ -6,7 +6,7 @@ interface StickyBetBarProps {
   canBet: boolean;
   onPlace: () => void;
   loading?: boolean;
-  label?: string;
+  label?: React.ReactNode;
 }
 
 /**
@@ -38,4 +38,3 @@ export function StickyBetBar({
     </div>
   );
 }
-
