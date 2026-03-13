@@ -105,3 +105,39 @@ Local HEAD: `f063d1fd` (before fix)
   - no 404 from stale modal context,
   - normal settlement for valid prediction.
 
+## Live Rerun After `afca9ff6` Frontend Deploy
+
+### Frontend deployment evidence
+- Staging frontend now serves:
+  - `/assets/index-EVDrjrL5.js`
+- This is newer than the pre-fix bundle (`index-DtGDCa76.js`), indicating deploy advance after push.
+
+### Authenticated live staging verification (disposable creator)
+- Disposable creator user created in staging and authenticated via Supabase password flow.
+- Terms accepted (`POST /api/v2/users/me/accept-terms`).
+- Disposable prediction created and verified visible via:
+  - `GET /api/v2/predictions/created/:userId` (contains prediction id)
+  - `GET /api/v2/predictions/:predictionId` (same id, status `closed`)
+
+### Critical parity result (same authenticated user + same prediction)
+- `POST /api/v2/settlement/manual`:
+  - `200`
+  - sample `x-request-id`: `4e934f92-86d2-410b-bf99-8823a13cda5e`
+  - body includes `ok: true` / `alreadySettled: true`
+- `POST /api/v2/settlement/manual/merkle`:
+  - `404`
+  - sample `x-request-id`: `3685aec0-d035-4d1d-8b47-dcb85230f10b`
+  - body: `{"error":"Not found","message":"Prediction not found","version":"2.0.78"}`
+
+### Interpretation
+- This confirms the parity issue is still open after frontend guardrails:
+  - valid prediction exists and is retrievable in staging,
+  - `manual` route succeeds,
+  - `manual/merkle` route returns false `Prediction not found` for same entity.
+- The remaining blocker is backend-path-specific behavior in `manual/merkle` (not resolved by `afca9ff6` UI fix).
+
+## Technical Debt Note (requested)
+
+- `manual/merkle` naming likely reflects legacy crypto-era terminology.
+- It should be reviewed later as technical debt (API naming/clarity pass).
+- **No rename/remove/contract change was made in this bugfix pass.**
