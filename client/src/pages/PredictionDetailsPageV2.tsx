@@ -1246,45 +1246,6 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
                   {/* Stake Input - Only shows after option selection */}
                   {isAuthenticated && selectedOptionId && (
                     <div className="bg-white rounded-2xl p-4 shadow-sm border space-y-3">
-                      {/* Funding mode toggle (Demo/Fiat gated by feature flags + store-safe mode) */}
-                      {!zaurumModeEnabled && (showDemo || effectiveFiatEnabled || effectiveCryptoEnabled) && (
-                        <div className="inline-flex rounded-lg bg-gray-100 p-1 flex-wrap gap-1">
-                          {effectiveCryptoEnabled && (
-                            <button
-                              onClick={() => setMode('crypto')}
-                              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                                isCryptoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                              }`}
-                              type="button"
-                            >
-                              Crypto (USDC)
-                            </button>
-                          )}
-                          {showDemo && (
-                            <button
-                              onClick={() => setMode('demo')}
-                              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                                isDemoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                              }`}
-                              type="button"
-                            >
-                              Zaurum
-                            </button>
-                          )}
-                          {effectiveFiatEnabled && (
-                            <button
-                              onClick={() => setMode('fiat')}
-                              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                                isFiatMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                              }`}
-                              type="button"
-                            >
-                              Fiat (NGN)
-                            </button>
-                          )}
-                        </div>
-                      )}
-
                       <div>
                         <label htmlFor="stake-input" className="block text-sm font-medium text-gray-900 mb-2">
                           Stake Amount ({isFiatMode ? 'NGN' : (isZaurumStakeMode ? 'Zaurum' : 'USDC')})

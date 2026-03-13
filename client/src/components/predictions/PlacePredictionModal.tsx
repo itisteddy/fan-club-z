@@ -477,41 +477,6 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
 
               {/* Scrollable Body */}
               <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                {!zaurumModeEnabled && (isDemoEnabled || isFiatEnabled) && (
-                  <div className="inline-flex rounded-lg bg-gray-100 p-1 flex-wrap gap-1">
-                    {cryptoAllowed && (
-                      <button
-                        onClick={() => setMode('crypto')}
-                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                          isCryptoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                        }`}
-                      >
-                        Crypto (USDC)
-                      </button>
-                    )}
-                    {isDemoEnabled && (
-                      <button
-                        onClick={() => setMode('demo')}
-                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                          isDemoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                        }`}
-                      >
-                        Zaurum
-                      </button>
-                    )}
-                    {isFiatEnabled && (
-                      <button
-                        onClick={() => setMode('fiat')}
-                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                          isFiatMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                        }`}
-                      >
-                        Fiat (NGN)
-                      </button>
-                    )}
-                  </div>
-                )}
-
                 {/* Prediction Info */}
                 <div className="space-y-2">
                   <h3 className="font-semibold text-gray-900 text-base">{prediction.title}</h3>

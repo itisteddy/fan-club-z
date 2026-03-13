@@ -455,45 +455,8 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
       />
       
       <Page>
-        {/* Funding mode toggle: show only when we have multiple supported modes */}
-        {!zaurumModeEnabled && ((showDemo && effectiveCryptoEnabled) || (effectiveFiatEnabled && (showDemo || effectiveCryptoEnabled))) && (
-          <div className="mb-4">
-            <div className="inline-flex rounded-lg bg-gray-100 p-1 flex-wrap gap-1">
-              {effectiveCryptoEnabled && (
-                <button
-                  onClick={() => setMode('crypto')}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                    isCryptoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  Crypto (USDC)
-                </button>
-              )}
-              {showDemo && (
-                <button
-                  onClick={() => setMode('demo')}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                    isDemoMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  Zaurum
-                </button>
-              )}
-              {effectiveFiatEnabled && (
-                <button
-                  onClick={() => setMode('fiat')}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                    isFiatMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  Fiat (NGN)
-                </button>
-              )}
-            </div>
-            {Runtime.storeSafeMode && (
-              <p className="mt-2 text-xs text-gray-500">Zaurum Mode</p>
-            )}
-          </div>
+        {Runtime.storeSafeMode && (
+          <p className="mb-4 mt-1 text-xs text-gray-500">Zaurum Mode</p>
         )}
 
         {isCryptoMode && !isConnected ? (
@@ -509,19 +472,12 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                     ? 'Connect your crypto wallet to view balances and manage funds'
                     : 'Crypto wallet features are not available in this build. Use Zaurum to explore predictions.'}
                 </p>
-                {storeSafePolicy.allowCryptoWalletConnect ? (
+                {storeSafePolicy.allowCryptoWalletConnect && (
                   <button
                     onClick={() => setShowConnectWallet(true)}
                     className="px-6 py-3 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
                   >
                     Connect Wallet
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setMode('demo')}
-                    className="px-6 py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors"
-                  >
-                    Switch to Zaurum Mode
                   </button>
                 )}
                 {/* Funding Guide Link */}
