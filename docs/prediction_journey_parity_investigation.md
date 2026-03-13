@@ -141,3 +141,26 @@ Local HEAD: `f063d1fd` (before fix)
 - `manual/merkle` naming likely reflects legacy crypto-era terminology.
 - It should be reviewed later as technical debt (API naming/clarity pass).
 - **No rename/remove/contract change was made in this bugfix pass.**
+
+## Backend Path-Specific Follow-Up (this pass)
+
+### Proven backend divergence
+- `/manual` uses `predictions.select('*')`.
+- `/manual/merkle` used explicit column select including optional `resolution_reason` / `resolution_source_url`.
+- `/manual/merkle` mapped any prediction query error to `404 Prediction not found`.
+
+### Root cause category
+- **A**: backend-path lookup divergence in `/manual/merkle` (false 404 for valid prediction when explicit-select failed).
+
+### Fix applied
+- Added schema-tolerant loader in `server/src/routes/settlement.ts` for `/manual/merkle`:
+  - primary explicit select (existing columns)
+  - fallback select without optional resolution columns on column-select errors
+- Corrected error mapping:
+  - lookup/query error -> `500 database_error`
+  - only true missing prediction -> `404 Prediction not found`
+
+### Scope safety
+- No route rename.
+- No settlement architecture refactor.
+- No production changes.

@@ -30,6 +30,58 @@ function cryptoGate(req: express.Request, res: express.Response): boolean {
   return false;
 }
 
+function isColumnSelectError(error: any): boolean {
+  const code = String(error?.code || '').toUpperCase();
+  const message = String(error?.message || '').toLowerCase();
+  const details = String(error?.details || '').toLowerCase();
+  return (
+    code === '42703' ||
+    code === 'PGRST204' ||
+    message.includes('column') && message.includes('does not exist') ||
+    message.includes('could not find the') && message.includes('column') ||
+    details.includes('column')
+  );
+}
+
+async function loadPredictionForManualMerkle(predictionId: string) {
+  const primarySelect =
+    'id, creator_id, title, status, settled_at, winning_option_id, resolution_reason, resolution_source_url, platform_fee_percentage, creator_fee_percentage';
+  const fallbackSelect =
+    'id, creator_id, title, status, settled_at, winning_option_id, platform_fee_percentage, creator_fee_percentage';
+
+  const primary = await supabase
+    .from('predictions')
+    .select(primarySelect)
+    .eq('id', predictionId)
+    .single();
+
+  if (!primary.error) {
+    return { prediction: primary.data as any, error: null as any, usedFallback: false };
+  }
+
+  if (!isColumnSelectError(primary.error)) {
+    return { prediction: null as any, error: primary.error, usedFallback: false };
+  }
+
+  console.warn('[SETTLEMENT] manual/merkle primary prediction select failed; retrying with fallback columns', {
+    predictionId,
+    code: (primary.error as any)?.code,
+    message: (primary.error as any)?.message,
+  });
+
+  const fallback = await supabase
+    .from('predictions')
+    .select(fallbackSelect)
+    .eq('id', predictionId)
+    .single();
+
+  if (fallback.error) {
+    return { prediction: null as any, error: fallback.error, usedFallback: true };
+  }
+
+  return { prediction: fallback.data as any, error: null as any, usedFallback: true };
+}
+
 // Minimal ABI for settlement root read
 const ESCROW_MERKLE_READ_ABI = [
   {
@@ -2442,12 +2494,21 @@ router.post('/manual/merkle', async (req, res) => {
     }
 
     // Verify user is creator and load settled_at for idempotency
-    const { data: prediction, error: predictionError } = await supabase
-      .from('predictions')
-      .select('id, creator_id, title, status, settled_at, winning_option_id, resolution_reason, resolution_source_url, platform_fee_percentage, creator_fee_percentage')
-      .eq('id', predictionId)
-      .single();
-    if (predictionError || !prediction) {
+    const { prediction, error: predictionError, usedFallback } = await loadPredictionForManualMerkle(predictionId);
+    if (predictionError) {
+      console.error('[SETTLEMENT] manual/merkle prediction lookup error', {
+        predictionId,
+        code: (predictionError as any)?.code,
+        message: (predictionError as any)?.message,
+        usedFallback,
+      });
+      return res.status(500).json({
+        error: 'database_error',
+        message: 'Failed to load prediction',
+        version: VERSION
+      });
+    }
+    if (!prediction) {
       return res.status(404).json({
         error: 'Not found',
         message: 'Prediction not found',
