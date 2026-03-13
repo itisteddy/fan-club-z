@@ -244,10 +244,11 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   }, [user?.id, queryClient, refetchActivity, refetchWalletSummary, demoRemainingMs, demoCooldownKey, formatRemaining]);
 
   useEffect(() => {
-    if (isDemoMode) {
+    // Chunk 2: in Zaurum mode, use canonical /api/wallet/summary read-model only.
+    if (isDemoMode && !zaurumModeEnabled) {
       void fetchDemoSummary();
     }
-  }, [isDemoMode, fetchDemoSummary]);
+  }, [isDemoMode, zaurumModeEnabled, fetchDemoSummary]);
   
   const activities = activityData?.items || [];
   
@@ -267,7 +268,8 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
 
   const isLoading = isFiatMode ? loadingFiat : (loadingWalletBalance || loadingSnapshot);
   const creatorEarningsBalance = Number(walletSummary?.creatorEarnings ?? walletSummary?.balances?.creatorEarnings ?? 0);
-  const stakeBalance = Number(walletSummary?.stakeBalance ?? walletSummary?.balances?.stakeBalance ?? walletSummary?.available ?? 0);
+  // Chunk 2: visible wallet model for Zaurum is Available + Locked + Creator Earnings.
+  const stakeBalance = Number(walletSummary?.available ?? walletSummary?.stakeBalance ?? walletSummary?.balances?.stakeBalance ?? 0);
   const stakeLockedBalance = Number(walletSummary?.reserved ?? walletSummary?.reservedUSDC ?? 0);
   const parsedTransferAmount = Number.parseFloat(creatorTransferAmount || '0');
   const hasValidTransferAmount = Number.isFinite(parsedTransferAmount) && parsedTransferAmount > 0 && parsedTransferAmount <= creatorEarningsBalance;

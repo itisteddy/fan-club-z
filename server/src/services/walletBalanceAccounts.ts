@@ -87,12 +87,15 @@ export async function getWalletBalanceAccountsSummary(userId: string): Promise<B
 
   const usd = (wallets || []).find((row: any) => row.currency === USD_CURRENCY) as any;
   const demo = (wallets || []).find((row: any) => row.currency === DEMO_CURRENCY) as any;
+  const demoAvailable = toNumber(demo?.available_balance ?? demo?.demo_credits_balance);
+  const demoReserved = toNumber(demo?.reserved_balance);
 
   return {
-    demoCredits: round8(toNumber(demo?.demo_credits_balance ?? demo?.available_balance)),
+    // Chunk 2: visible read-model should prefer canonical available/reserved fields.
+    demoCredits: round8(demoAvailable),
     creatorEarnings: round8(toNumber(usd?.creator_earnings_balance)),
-    stakeBalance: round8(toNumber(usd?.stake_balance ?? usd?.available_balance)),
-    stakeReserved: round8(toNumber(usd?.reserved_balance)),
+    stakeBalance: round8(demoAvailable),
+    stakeReserved: round8(demoReserved),
     bucketBalances: {
       claimZaurum: round8(toNumber((demo as any)?.claim_zaurum_balance)),
       wonZaurum: round8(toNumber((demo as any)?.won_zaurum_balance)),

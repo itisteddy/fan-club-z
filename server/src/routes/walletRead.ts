@@ -46,8 +46,8 @@ walletRead.get('/summary/:userId', async (req, res) => {
 
     console.log(`[walletRead] Fetching summary for user: ${userId}`);
 
-    // Get database wallet balance (source of truth for available funds after settlements)
-    const { data: wallet, error: walletError } = await supabase
+    // USD wallet carries creator earnings and legacy accounting fields.
+    const { data: walletUsd, error: walletError } = await supabase
       .from('wallets')
       .select('available_balance, reserved_balance, total_deposited, total_withdrawn, updated_at, stake_balance, creator_earnings_balance')
       .eq('user_id', userId)
@@ -99,11 +99,17 @@ walletRead.get('/summary/:userId', async (req, res) => {
       console.warn('[walletRead] Failed to upsert crypto address:', addrErr);
     }
 
-    // Use database balance as the source of truth
-    // After settlement, the database wallet is updated with winnings
-    const available = Number(wallet?.available_balance ?? 0);
-    const reserved = Number(wallet?.reserved_balance ?? 0);
-    const total = available + reserved;
+    // Demo wallet row is the canonical user-facing available/locked source for Zaurum.
+    const { data: walletDemo, error: walletDemoError } = await supabase
+      .from('wallets')
+      .select('available_balance, reserved_balance, total_deposited, total_withdrawn, updated_at')
+      .eq('user_id', userId)
+      .eq('currency', 'DEMO_USD')
+      .maybeSingle();
+
+    if (walletDemoError) {
+      console.error('[walletRead] Error fetching demo wallet:', walletDemoError);
+    }
     let balanceAccounts: {
       demoCredits: number;
       creatorEarnings: number;
@@ -122,9 +128,9 @@ walletRead.get('/summary/:userId', async (req, res) => {
       console.warn('[walletRead] Failed to load explicit balance accounts, falling back:', balanceErr);
       balanceAccounts = {
         demoCredits: 0,
-        creatorEarnings: Number(wallet?.creator_earnings_balance ?? 0),
-        stakeBalance: Number(wallet?.stake_balance ?? wallet?.available_balance ?? 0),
-        stakeReserved: Number(wallet?.reserved_balance ?? 0),
+        creatorEarnings: Number(walletUsd?.creator_earnings_balance ?? 0),
+        stakeBalance: Number(walletDemo?.available_balance ?? 0),
+        stakeReserved: Number(walletDemo?.reserved_balance ?? 0),
         bucketBalances: {
           claimZaurum: 0,
           wonZaurum: 0,
@@ -134,15 +140,19 @@ walletRead.get('/summary/:userId', async (req, res) => {
       };
     }
 
+    const available = Number(walletDemo?.available_balance ?? balanceAccounts.demoCredits ?? 0);
+    const reserved = Number(walletDemo?.reserved_balance ?? balanceAccounts.stakeReserved ?? 0);
+    const total = available + reserved;
+
     const summary = {
       user_id: userId,
       currency: 'USD',
       available: Number(available.toFixed(2)),
       reserved: Number(reserved.toFixed(2)),
       total: Number(total.toFixed(2)),
-      totalDeposited: Number((wallet?.total_deposited ?? 0).toFixed(2)),
-      totalWithdrawn: Number((wallet?.total_withdrawn ?? 0).toFixed(2)),
-      updatedAt: wallet?.updated_at ?? new Date().toISOString(),
+      totalDeposited: Number((walletDemo?.total_deposited ?? walletUsd?.total_deposited ?? 0).toFixed(2)),
+      totalWithdrawn: Number((walletDemo?.total_withdrawn ?? walletUsd?.total_withdrawn ?? 0).toFixed(2)),
+      updatedAt: walletDemo?.updated_at ?? walletUsd?.updated_at ?? new Date().toISOString(),
       walletAddress: preferredAddress,
       balances: {
         demoCredits: Number((balanceAccounts.demoCredits ?? 0).toFixed(2)),

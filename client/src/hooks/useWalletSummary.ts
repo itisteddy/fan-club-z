@@ -101,23 +101,28 @@ export function useWalletSummary(userId?: string, options: WalletSummaryOptions 
       }
 
       const summary = await response.json();
+      const visibleAvailable = Number(summary.available ?? 0);
+      const visibleReserved = Number(summary.reserved ?? 0);
+      const visibleStakeBalance = Number(summary.stakeBalance ?? summary.balances?.stakeBalance ?? visibleAvailable);
+      const visibleDemoCredits = Number(summary.demoCredits ?? summary.balances?.demoCredits ?? visibleAvailable);
 
       return {
         currency: 'USD',
-        available: Number(summary.available ?? 0),
-        reserved: Number(summary.reserved ?? 0),
+        available: visibleAvailable,
+        reserved: visibleReserved,
         total: Number(summary.total ?? 0),
-        demoCredits: Number(summary.demoCredits ?? summary.balances?.demoCredits ?? 0),
+        // Chunk 2: keep demoCredits as a legacy alias for visible available balance.
+        demoCredits: visibleDemoCredits,
         creatorEarnings: Number(summary.creatorEarnings ?? summary.balances?.creatorEarnings ?? 0),
-        stakeBalance: Number(summary.stakeBalance ?? summary.balances?.stakeBalance ?? summary.available ?? 0),
+        stakeBalance: visibleStakeBalance,
         balances: {
-          demoCredits: Number(summary.demoCredits ?? summary.balances?.demoCredits ?? 0),
+          demoCredits: visibleDemoCredits,
           creatorEarnings: Number(summary.creatorEarnings ?? summary.balances?.creatorEarnings ?? 0),
-          stakeBalance: Number(summary.stakeBalance ?? summary.balances?.stakeBalance ?? summary.available ?? 0),
+          stakeBalance: visibleStakeBalance,
           creatorEarningsCumulative: Number(summary.creatorEarningsCumulative ?? summary.balances?.creatorEarningsCumulative ?? 0),
         },
-        availableToStakeUSDC: Number(summary.availableToStakeUSDC ?? summary.available ?? 0),
-        reservedUSDC: Number(summary.reservedUSDC ?? summary.reserved ?? 0),
+        availableToStakeUSDC: Number(summary.availableToStakeUSDC ?? visibleAvailable),
+        reservedUSDC: Number(summary.reservedUSDC ?? visibleReserved),
         escrowUSDC: Number(summary.escrowUSDC ?? summary.total ?? 0),
         totalDeposited: Number(summary.totalDeposited ?? summary.totalDepositedUSDC ?? 0),
         totalWithdrawn: Number(summary.totalWithdrawn ?? summary.totalWithdrawnUSDC ?? 0),
