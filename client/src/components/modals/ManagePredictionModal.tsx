@@ -17,6 +17,7 @@ import { useAuthSession } from '@/providers/AuthSessionProvider';
 import CoverCropModal from '@/components/modals/CoverCropModal';
 import { ZaurumAmount } from '@/components/ui/ZaurumAmount';
 import ZaurumMark from '@/components/ui/ZaurumMark';
+import { isManagePredictionSettledState } from './managePredictionSettlementState';
 
 interface ManagePredictionModalProps {
   isOpen: boolean;
@@ -90,11 +91,7 @@ const ManagePredictionModal: React.FC<ManagePredictionModalProps> = ({
   const { user } = useAuthStore();
   const { session } = useAuthSession();
 
-  const isPredictionSettled = useCallback((pred: any) => {
-    if (!pred) return false;
-    const status = String(pred.status || '').toLowerCase();
-    return status === 'settled' || pred.settled_at != null || pred.settledAt != null;
-  }, []);
+  const isPredictionSettled = useCallback((pred: any) => isManagePredictionSettledState(pred), []);
 
   // Helper function to determine if prediction can be settled
   const canSettle = (pred: any) => {
