@@ -23,6 +23,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
   prediction,
   onSettlementComplete
 }) => {
+  const initialPredictionId = String((prediction as any)?.id ?? '').trim();
   const [selectedOptionId, setSelectedOptionId] = useState<string>('');
   const [proofUrl, setProofUrl] = useState('');
   const [reason, setReason] = useState('');
@@ -32,6 +33,8 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
   const [participantCountOverride, setParticipantCountOverride] = useState<number | null>(null);
   const [platformFeePctOverride, setPlatformFeePctOverride] = useState<number | null>(null);
   const [creatorFeePctOverride, setCreatorFeePctOverride] = useState<number | null>(null);
+  const [canonicalPredictionId, setCanonicalPredictionId] = useState<string>(initialPredictionId);
+  const [predictionMissing, setPredictionMissing] = useState(false);
 
   const { isSettling, settlementError, clearError } = useSettlement();
   const { settleWithMerkle, isSubmitting: isPostingRoot, error: merkleError } = useSettlementMerkle();
@@ -39,6 +42,15 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
 
   const handleSubmit = async () => {
     if (isSettling || isPostingRoot) return;
+    const predictionId = String(canonicalPredictionId || (prediction as any)?.id || '').trim();
+    if (!predictionId || predictionId === 'null' || predictionId === 'undefined') {
+      toast.error('Prediction is unavailable. Refresh and try again.');
+      return;
+    }
+    if (predictionMissing) {
+      toast.error('Prediction was not found. Refresh your Created tab and try again.');
+      return;
+    }
     if (!selectedOptionId) {
       toast.error('Please select a winning option');
       return;
@@ -50,7 +62,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
     try {
       clearError();
       const result = await settleWithMerkle({
-        predictionId: prediction.id,
+        predictionId,
         winningOptionId: selectedOptionId,
         reason: reason.trim(),
         userId: prediction.creator_id || '',
@@ -82,11 +94,14 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
   const { fetchPredictionById } = usePredictionStore();
   React.useEffect(() => {
     let isMounted = true;
+    setCanonicalPredictionId(String((prediction as any)?.id ?? '').trim());
+    setPredictionMissing(false);
     const ensureOptions = async () => {
       try {
         if (prediction.options && prediction.options.length > 0) {
           if (!isMounted) return;
           setOptions(prediction.options);
+          setCanonicalPredictionId(String((prediction as any)?.id ?? '').trim());
           // Still keep fee percentages/pool/participants aligned from the freshest data we have
           setPoolTotalOverride(typeof prediction.pool_total === 'number' ? prediction.pool_total : null);
           setParticipantCountOverride(typeof prediction.participant_count === 'number' ? prediction.participant_count : null);
@@ -102,6 +117,8 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
         const full = await fetchPredictionById(String(prediction.id));
         if (isMounted && full?.options?.length) {
           setOptions(full.options);
+          setCanonicalPredictionId(String((full as any)?.id ?? '').trim());
+          setPredictionMissing(false);
           setPoolTotalOverride(typeof (full as any).pool_total === 'number' ? Number((full as any).pool_total) : null);
           setParticipantCountOverride(
             typeof (full as any).participant_count === 'number' ? Number((full as any).participant_count) : null
@@ -114,9 +131,11 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
           );
           console.log('✅ SettlementModal: Loaded options via fetch:', full.options.length);
         } else if (isMounted) {
+          setPredictionMissing(true);
           console.warn('⚠️ SettlementModal: No options available for prediction:', prediction.id);
         }
       } catch (err) {
+        if (isMounted) setPredictionMissing(true);
         console.warn('⚠️ SettlementModal: Failed to ensure options:', err);
       }
     };
@@ -309,6 +328,16 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
                     </div>
                   </div>
                 )}
+                {predictionMissing && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                      <p className="text-amber-800 text-sm">
+                        This prediction could not be refreshed. Close this modal, refresh the Created tab, and try again.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Footer - sticky above bottom nav */}
@@ -322,7 +351,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
                 </Button>
                 <Button
                   onClick={() => setShowConfirmation(true)}
-                  disabled={!selectedOptionId || !reason.trim() || isSettling}
+                  disabled={!selectedOptionId || !reason.trim() || isSettling || predictionMissing}
                   className="bg-emerald-600 hover:bg-emerald-700"
                 >
                   Continue
@@ -415,7 +444,7 @@ const SettlementModal: React.FC<SettlementModalProps> = ({
                 </Button>
                 <Button
                   onClick={handleSubmit}
-                  disabled={isSettling || isPostingRoot}
+                  disabled={isSettling || isPostingRoot || predictionMissing}
                   className="bg-emerald-600 hover:bg-emerald-700"
                 >
                   {isPostingRoot ? 'Submitting...' : isSettling ? 'Settling...' : 'Confirm Settlement'}
