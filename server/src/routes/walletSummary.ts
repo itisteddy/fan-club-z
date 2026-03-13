@@ -166,12 +166,16 @@ async function handleSummaryRequest(
       console.warn('[FCZ-PAY] explicit wallet balance accounts failed (non-fatal):', balanceErr);
     }
 
+    const visibleAvailable = Number(demoAvailable.toFixed(2));
+    const visibleReserved = Number(demoReserved.toFixed(2));
+    const visibleTotal = Number((demoAvailable + demoReserved).toFixed(2));
+
     const response = {
       currency: 'USD' as const,
       // Demo rail (DB ledger)
-      available: Number(demoAvailable.toFixed(2)),
-      reserved: Number(demoReserved.toFixed(2)),
-      total: Number((demoAvailable + demoReserved).toFixed(2)),
+      available: visibleAvailable,
+      reserved: visibleReserved,
+      total: visibleTotal,
       // Crypto rail (on-chain escrow) — zeros when crypto unavailable
       escrowUSDC: Number(cryptoEscrow.toFixed(2)),
       reservedUSDC: Number(cryptoReserved.toFixed(2)),
@@ -183,7 +187,8 @@ async function handleSummaryRequest(
       reserved_total: Number((demoReserved + cryptoReserved).toFixed(2)),
       // Explicit wallet account balances (A2/A4 compatibility)
       balances: {
-        demoCredits: Number((balanceAccounts.demoCredits ?? demoAvailable).toFixed(2)),
+        // Compatibility alias: always mirror visible available to avoid legacy drift.
+        demoCredits: visibleAvailable,
         creatorEarnings: Number((balanceAccounts.creatorEarnings ?? 0).toFixed(2)),
         stakeBalance: Number((balanceAccounts.stakeBalance ?? demoAvailable).toFixed(2)),
         creatorEarningsCumulative: Number((creatorMilestones.cumulativeCredited ?? 0).toFixed(2)),
@@ -192,7 +197,8 @@ async function handleSummaryRequest(
         creatorFeeZaurum: Number((balanceAccounts.bucketBalances?.creatorFeeZaurum ?? 0).toFixed(2)),
         legacyMigratedZaurum: Number((balanceAccounts.bucketBalances?.legacyMigratedZaurum ?? 0).toFixed(2)),
       },
-      demoCredits: Number((balanceAccounts.demoCredits ?? demoAvailable).toFixed(2)),
+      // Compatibility alias: always mirror visible available to avoid legacy drift.
+      demoCredits: visibleAvailable,
       creatorEarnings: Number((balanceAccounts.creatorEarnings ?? 0).toFixed(2)),
       stakeBalance: Number((balanceAccounts.stakeBalance ?? demoAvailable).toFixed(2)),
       creatorEarningsCumulative: Number((creatorMilestones.cumulativeCredited ?? 0).toFixed(2)),

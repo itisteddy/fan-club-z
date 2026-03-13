@@ -442,9 +442,9 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   }, [media, prediction]);
 
   const zaurumAvailable = Number(
+    walletSummary?.available ??
     walletSummary?.stakeBalance ??
     walletSummary?.balances?.stakeBalance ??
-    walletSummary?.available ??
     0
   );
   const fiatAvailable = Number(fiatData?.summary?.availableNgn ?? 0);

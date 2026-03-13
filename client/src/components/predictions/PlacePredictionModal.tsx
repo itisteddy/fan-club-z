@@ -196,9 +196,9 @@ export const PlacePredictionModal: React.FC<PlacePredictionModalProps> = ({
   const expectedReturn = poolPreview ? poolPreview.expectedReturn : 0;
   const potentialProfit = poolPreview ? poolPreview.profit : 0;
   const zaurumAvailable = Number(
+    walletSummary?.available ??
     walletSummary?.stakeBalance ??
     walletSummary?.balances?.stakeBalance ??
-    walletSummary?.available ??
     0
   );
   const fiatAvailable = fiatData?.summary?.availableNgn ?? 0;

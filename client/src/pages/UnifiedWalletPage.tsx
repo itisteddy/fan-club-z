@@ -101,8 +101,6 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
   const totalUSD = snapshot?.escrowUSDC ?? 0;
   const isCorrectChain = !!chainId && chainId === baseSepolia.id;
 
-  // Demo wallet summary (DB-backed)
-  const [demoSummary, setDemoSummary] = useState<null | { currency: string; available: number; reserved: number; total: number; lastUpdated: string }>(null);
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoError, setDemoError] = useState<string | null>(null);
 
@@ -176,25 +174,6 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
     refetchIntervalMs: 30_000,
   });
 
-  const fetchDemoSummary = useCallback(async () => {
-    if (!user?.id) return;
-    try {
-      setDemoLoading(true);
-      setDemoError(null);
-      const resp = await fetch(`${getApiUrl()}/api/demo-wallet/summary?userId=${user.id}`);
-      const json = await resp.json().catch(() => null);
-      if (!resp.ok) {
-        throw new Error(json?.message || 'Failed to load Zaurum wallet');
-      }
-      setDemoSummary(json?.summary ?? null);
-    } catch (e: any) {
-      setDemoError(e?.message || 'Failed to load Zaurum wallet');
-      setDemoSummary(null);
-    } finally {
-      setDemoLoading(false);
-    }
-  }, [user?.id]);
-
   const faucetDemo = useCallback(async () => {
     if (!user?.id) return;
     if (demoRemainingMs > 0) {
@@ -212,7 +191,6 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
       if (!resp.ok) {
         throw new Error(json?.message || 'Failed to claim Zaurum');
       }
-      setDemoSummary(json?.summary ?? null);
       await queryClient.invalidateQueries({ queryKey: ['wallet', 'summary', user.id], exact: false });
       await queryClient.invalidateQueries({ queryKey: QK.walletActivity(user.id) });
       await Promise.all([refetchActivity(), refetchWalletSummary()]);
@@ -243,13 +221,6 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
     }
   }, [user?.id, queryClient, refetchActivity, refetchWalletSummary, demoRemainingMs, demoCooldownKey, formatRemaining]);
 
-  useEffect(() => {
-    // Chunk 2: in Zaurum mode, use canonical /api/wallet/summary read-model only.
-    if (isDemoMode && !zaurumModeEnabled) {
-      void fetchDemoSummary();
-    }
-  }, [isDemoMode, zaurumModeEnabled, fetchDemoSummary]);
-  
   const activities = activityData?.items || [];
   
   // Modal states
@@ -537,21 +508,21 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                   <>
                     <StatCard
                       label="Zaurum"
-                      value={formatZaurumAmount(demoSummary?.total ?? 0)}
+                      value={formatZaurumAmount((walletSummary?.available ?? 0) + (walletSummary?.reserved ?? 0))}
                       variant="default"
                       icon={<Wallet className="w-4 h-4" />}
                       subtitle="Total"
                     />
                     <StatCard
                       label="Available"
-                      value={formatZaurumAmount(demoSummary?.available ?? 0)}
+                      value={formatZaurumAmount(walletSummary?.available ?? 0)}
                       variant="default"
                       icon={<ZaurumMark size={14} />}
                       subtitle="Ready to stake"
                     />
                     <StatCard
                       label="In Bets"
-                      value={formatZaurumAmount(demoSummary?.reserved ?? 0)}
+                      value={formatZaurumAmount(walletSummary?.reserved ?? 0)}
                       variant="default"
                       icon={<Lock className="w-4 h-4" />}
                       subtitle="Currently locked"

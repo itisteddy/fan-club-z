@@ -155,7 +155,8 @@ walletRead.get('/summary/:userId', async (req, res) => {
       updatedAt: walletDemo?.updated_at ?? walletUsd?.updated_at ?? new Date().toISOString(),
       walletAddress: preferredAddress,
       balances: {
-        demoCredits: Number((balanceAccounts.demoCredits ?? 0).toFixed(2)),
+        // Compatibility alias: mirror visible available to avoid shadow-field drift.
+        demoCredits: Number(available.toFixed(2)),
         creatorEarnings: Number((balanceAccounts.creatorEarnings ?? 0).toFixed(2)),
         stakeBalance: Number((balanceAccounts.stakeBalance ?? available).toFixed(2)),
         claimZaurum: Number((balanceAccounts.bucketBalances.claimZaurum ?? 0).toFixed(2)),
@@ -163,7 +164,8 @@ walletRead.get('/summary/:userId', async (req, res) => {
         creatorFeeZaurum: Number((balanceAccounts.bucketBalances.creatorFeeZaurum ?? 0).toFixed(2)),
         legacyMigratedZaurum: Number((balanceAccounts.bucketBalances.legacyMigratedZaurum ?? 0).toFixed(2)),
       },
-      demoCredits: Number((balanceAccounts.demoCredits ?? 0).toFixed(2)),
+      // Compatibility alias: mirror visible available to avoid shadow-field drift.
+      demoCredits: Number(available.toFixed(2)),
       creatorEarnings: Number((balanceAccounts.creatorEarnings ?? 0).toFixed(2)),
       stakeBalance: Number((balanceAccounts.stakeBalance ?? available).toFixed(2)),
       claimZaurum: Number((balanceAccounts.bucketBalances.claimZaurum ?? 0).toFixed(2)),
