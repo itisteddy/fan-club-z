@@ -167,6 +167,27 @@ Local HEAD: `f063d1fd` (before fix)
 - This confirmed fallback still selected a missing column (`winning_option_id`) in staging schema.
 - Follow-up patch narrowed fallback select to schema-stable columns only.
 
+## Final staging validation after backend fix (`10eef59a`)
+
+Live backend SHA:
+- `GET /health` -> `gitSha: 10eef59aed25fc1cfdd67639b19ab6c465a4232a`
+
+Authenticated disposable creator E2E (staging):
+- Terms accept: `POST /api/v2/users/me/accept-terms` -> `200`
+- Create prediction: `POST /api/v2/predictions` -> `200`
+- Close prediction: `POST /api/v2/predictions/:id/close` -> `200`
+- Created tab data: `GET /api/v2/predictions/created/:userId` -> `200`
+- Prediction detail: `GET /api/v2/predictions/:id` -> `200`
+- Manual settlement path: `POST /api/v2/settlement/manual` -> `200`
+  - `x-request-id: 55fb8819-d3f4-493e-9fc5-891718522650`
+- Merkle settlement path (same user + same prediction + same winning option):  
+  `POST /api/v2/settlement/manual/merkle` -> `200`
+  - `x-request-id: 36e1e36e-c024-428e-91d9-59f23d775d22`
+  - Response: `success: true`, demo off-chain completion payload (no false `Prediction not found`)
+
+Result:
+- Backend-path parity issue (`manual` succeeds while `manual/merkle` fails for same valid prediction) is resolved in staging.
+
 ### Scope safety
 - No route rename.
 - No settlement architecture refactor.

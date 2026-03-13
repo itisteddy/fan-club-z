@@ -66,3 +66,11 @@ These behavior differences are expected and not the parity bug root cause.
   - only missing row -> `404 Prediction not found`
 
 This preserves route contract and behavior while removing the false-404 divergence.
+
+## 7) Validation snapshot
+
+On staging backend `10eef59a...` with same authenticated user + prediction:
+- `POST /api/v2/settlement/manual` -> `200`
+- `POST /api/v2/settlement/manual/merkle` -> `200`
+
+No `Prediction not found` mismatch remains between the two paths for the tested flow.
