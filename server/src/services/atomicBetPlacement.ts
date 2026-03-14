@@ -13,6 +13,7 @@
 import { Pool, PoolClient } from 'pg';
 import { withTransaction, getDbPool } from '../utils/dbPool';
 import { supabase } from '../config/database';
+import { logProductEvent } from './analyticsEventService';
 
 interface PlaceBetParams {
   userId: string;
@@ -279,6 +280,20 @@ export async function placeBetAtomically(
         })
       ]
     );
+
+    // Instrument: stake_placed (fire-and-forget; idempotent via entry ID)
+    logProductEvent({
+      eventName: 'stake_placed',
+      userId,
+      idempotencyKey: `stake_placed:${entryId}`,
+      properties: {
+        entryId,
+        predictionId,
+        optionId,
+        amountUSD,
+        lockId: finalLockId,
+      },
+    });
 
     // Transaction will be committed by withTransaction
     

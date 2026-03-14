@@ -8,6 +8,7 @@
 import express from 'express';
 import { supabase } from '../config/database';
 import { VERSION } from '@fanclubz/shared';
+import { logProductEvent } from '../services/analyticsEventService';
 
 const router = express.Router();
 
@@ -332,7 +333,19 @@ router.post('/api/referrals/attribute', checkFeatureEnabled, async (req, res) =>
     }
     
     console.log(`[Referral] Attribution successful: ${userId} -> ${referrer.id} (code: ${refCode})`);
-    
+
+    // Instrument: referred_signup_completed (fire-and-forget)
+    logProductEvent({
+      eventName: 'referred_signup_completed',
+      userId,
+      idempotencyKey: `referred_signup_completed:${userId}`,
+      properties: {
+        referrerId: referrer.id,
+        refCode,
+        refereeUserId: userId,
+      },
+    });
+
     return res.json({
       data: { attributed: true, referrerId: referrer.id },
       message: 'Referral attributed successfully',
@@ -381,7 +394,14 @@ router.post('/api/referrals/log-login', checkFeatureEnabled, async (req, res) =>
       .from('users')
       .update({ last_login_at: new Date().toISOString() })
       .eq('id', userId);
-    
+
+    // Instrument: login_completed (no idempotency key — every login is a distinct event)
+    logProductEvent({
+      eventName: 'login_completed',
+      userId,
+      properties: { source },
+    });
+
     return res.json({
       data: { logged: true },
       message: 'Login logged',

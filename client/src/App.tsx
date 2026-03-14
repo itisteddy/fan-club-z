@@ -55,6 +55,11 @@ const LazyConfigPage = lazy(() => import('./pages/admin/ConfigPage'));
 const LazySettlementsPage = lazy(() => import('./pages/admin/SettlementsPage'));
 const LazySettlementDetailPage = lazy(() => import('./pages/admin/SettlementDetailPage'));
 const LazySupportPage = lazy(() => import('./pages/admin/SupportPage'));
+const LazyAnalyticsPage = lazy(() => import('./pages/admin/AnalyticsPage'));
+const LazyAdminAnalyticsDashboard = lazy(() => import('./pages/admin/AdminAnalyticsDashboard'));
+const LazyReferralScorecardsPage = lazy(() => import('./pages/admin/ReferralScorecardsPage'));
+const LazyTeamAnalyticsPage = lazy(() => import('./pages/admin/TeamAnalyticsPage'));
+const LazyTeamMemberDetailPage = lazy(() => import('./pages/admin/TeamMemberDetailPage'));
 
 
 // Import all page components
@@ -903,6 +908,46 @@ const AppContent: React.FC = () => {
                   <AdminGuard>
                     <AdminLayout>
                       <LazySupportPage />
+                    </AdminLayout>
+                  </AdminGuard>
+                }
+              />
+              <Route
+                path="/admin/analytics"
+                element={
+                  <AdminGuard>
+                    <AdminLayout>
+                      <LazyAdminAnalyticsDashboard />
+                    </AdminLayout>
+                  </AdminGuard>
+                }
+              />
+              <Route
+                path="/admin/analytics/referrals"
+                element={
+                  <AdminGuard>
+                    <AdminLayout>
+                      <LazyReferralScorecardsPage />
+                    </AdminLayout>
+                  </AdminGuard>
+                }
+              />
+              <Route
+                path="/admin/analytics/team/:memberId"
+                element={
+                  <AdminGuard>
+                    <AdminLayout>
+                      <LazyTeamMemberDetailPage />
+                    </AdminLayout>
+                  </AdminGuard>
+                }
+              />
+              <Route
+                path="/admin/analytics/team"
+                element={
+                  <AdminGuard>
+                    <AdminLayout>
+                      <LazyTeamAnalyticsPage />
                     </AdminLayout>
                   </AdminGuard>
                 }
