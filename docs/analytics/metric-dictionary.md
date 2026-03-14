@@ -119,7 +119,57 @@ For the referral scorecard, `period` selects which column is used for the "in-pe
 
 ---
 
-## 7. Caveats
+## 7. Team-Member Referral Metrics
+
+Source view: `v_team_referral_scorecard` (always-fresh; migration 347).
+Time-series source: `referral_daily_snapshots` (per-referrer per-day; computed nightly).
+
+### 7.1 Composite Score
+
+**Formula** (see `server/src/constants/referralScoring.ts`):
+```
+score = qualified_count × 3.0
+      + d7_retained_count × 2.0
+      + d30_retained_count × 5.0
+      + activated_count × 1.5
+      + (stake_volume / 10) × 0.1
+      + predictions_created × 0.5
+      - suspicious_signups × 5.0
+```
+
+Weights are **configurable in code** — changing `DEFAULT_SCORING_WEIGHTS` in `referralScoring.ts`
+immediately affects the API leaderboard ranking. See `docs/analytics/team-referral-scoring.md`.
+
+### 7.2 All Team-Member Metrics
+
+| Metric | Column | Definition |
+|--------|--------|------------|
+| **Total clicks** | `total_clicks` | All-time clicks on the referrer's link (from `referral_clicks`) |
+| **Unique IPs** | `unique_ips` | `COUNT(DISTINCT ip)` on `referral_clicks` — anti-gaming signal |
+| **Unique sessions** | `unique_sessions` | `COUNT(DISTINCT device_fingerprint/ip/ua)` — rough session dedup |
+| **Total signups** | `total_signups` | Unique referees attributed to this referrer |
+| **Onboarding completions** | `onboarding_completions` | `product_events` with `event_name='onboarding_completed'` by referred users |
+| **Activated** | `activated_count` | Referred users with `referral_attributions.is_activated = true` |
+| **Qualified** | `qualified_count` | ≥2 active days + ≥1 economic action within 14d (see §9) |
+| **D7 retained** | `d7_retained_count` | Referred users with `user_activation_status.d7_retained = true` |
+| **D30 retained** | `d30_retained_count` | Referred users with `user_activation_status.d30_retained = true` |
+| **Referred stake volume** | `referred_stake_volume` | `SUM(prediction_entries.amount)` by referred users |
+| **Referred predictions created** | `referred_predictions_created` | `product_events WHERE event_name='prediction_created'` by referred users |
+| **Referred creator earnings** | `referred_creator_earnings` | `SUM(user_stats_daily.creator_earnings_amount)` for referred users |
+| **Referred comments** | `referred_comments_count` | `product_events WHERE event_name='comment_created'` by referred users |
+| **Referred likes** | `referred_likes_count` | `product_events WHERE event_name='like_added'` by referred users |
+| **Referred tags** | `referred_tags_count` | `product_events WHERE event_name='tag_used'` by referred users |
+| **Suspicious signups** | `suspicious_signups_count` | Signups where `referral_attributions.flags->>'suspicious' = true` |
+| **Click → signup %** | `click_to_signup_pct` | `total_signups / total_clicks × 100` |
+| **Signup → activation %** | `signup_to_activation_pct` | `activated_count / total_signups × 100` |
+| **Qualification rate %** | `qualification_rate_pct` | `qualified_count / total_signups × 100` |
+| **D7 retention rate %** | `d7_retention_rate_pct` | `d7_retained_count / total_signups × 100` |
+| **D30 retention rate %** | `d30_retention_rate_pct` | `d30_retained_count / total_signups × 100` |
+| **Composite score** | `composite_score` | See formula above |
+
+---
+
+## 8. Caveats
 
 - **Stake volume** is denominated in the app's internal unit (USD-equivalent). On-chain USDC amounts are tracked separately in `wallet_transactions`.
 - **Active Users** counts actions from `user_stats_daily`, which is populated by the achievements cron. If that cron hasn't run for a day, `active_users_count` will be 0 for that day even if users were present.

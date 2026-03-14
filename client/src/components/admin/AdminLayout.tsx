@@ -15,6 +15,7 @@ import {
   LogOut,
   ChevronLeft,
   BarChart2,
+  Trophy,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -24,6 +25,7 @@ interface AdminLayoutProps {
 const navItems = [
   { path: '/admin', label: 'Overview', icon: LayoutDashboard, exact: true },
   { path: '/admin/analytics', label: 'Analytics', icon: BarChart2 },
+  { path: '/admin/analytics/team', label: 'Team Referrals', icon: Trophy },
   { path: '/admin/users', label: 'Users', icon: Users },
   { path: '/admin/wallets', label: 'Wallets', icon: Wallet },
   { path: '/admin/predictions', label: 'Predictions', icon: Target },
