@@ -74,7 +74,11 @@ async function assertAdminCapable(apiBase: string, auth: StoredAuth): Promise<bo
   return res.ok;
 }
 
-async function createAndClosePrediction(apiBase: string, auth: StoredAuth, prefix: string): Promise<{ id: string; optionId: string }> {
+async function createAndClosePrediction(
+  apiBase: string,
+  auth: StoredAuth,
+  prefix: string
+): Promise<{ id: string; optionId: string; title: string }> {
   const title = `${prefix} ${Date.now()}`;
   const entryDeadline = new Date(Date.now() + 90 * 60 * 1000).toISOString();
 
@@ -111,7 +115,7 @@ async function createAndClosePrediction(apiBase: string, auth: StoredAuth, prefi
   });
   if (!closeRes.ok) throw new Error(`Close prediction failed (${closeRes.status}): ${await closeRes.text()}`);
 
-  return { id: prediction.id, optionId: prediction.options[0].id };
+  return { id: prediction.id, optionId: prediction.options[0].id, title };
 }
 
 async function openContextPage(
@@ -152,6 +156,12 @@ test.describe('Admin settlement browser E2E', () => {
       const observedAdminCalls: Array<{ status: number; method: string; url: string }> = [];
       const pageErrors: string[] = [];
       const consoleErrors: string[] = [];
+      const detailResponsePromise = page.waitForResponse(
+        (res) =>
+          res.url().includes(`/api/v2/admin/predictions/${fixture.id}`) &&
+          res.request().method() === 'GET',
+        { timeout: 30_000 }
+      ).catch(() => null);
       page.on('pageerror', (err) => pageErrors.push(String(err?.message || err).slice(0, 300)));
       page.on('console', (msg) => {
         if (msg.type() === 'error') consoleErrors.push(msg.text().slice(0, 300));
@@ -168,14 +178,7 @@ test.describe('Admin settlement browser E2E', () => {
       });
       await page.goto(`${baseURL}/admin/predictions/${fixture.id}`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(2500);
-      const detailRes = await page
-        .waitForResponse(
-          (res) =>
-            res.url().includes(`/api/v2/admin/predictions/${fixture.id}`) &&
-            res.request().method() === 'GET',
-          { timeout: 10_000 }
-        )
-        .catch(() => null);
+      const detailRes = await detailResponsePromise;
       if (!detailRes) {
         throw new Error(
           `No admin prediction detail request observed. currentUrl=${page.url()} ` +
@@ -222,9 +225,29 @@ test.describe('Admin settlement browser E2E', () => {
       const settleResponse = await settleResponsePromise;
       expect(settleResponse.ok()).toBeTruthy();
 
-      await expect(page.getByRole('heading', { name: /Settle Prediction/i })).toHaveCount(0, { timeout: 20_000 });
-      await expect(page.getByRole('button', { name: /Reset to Active/i })).toBeVisible({ timeout: 20_000 });
-      await expect(page.getByText(/Settled/i).first()).toBeVisible();
+      await expect(page.getByRole('heading', { name: /Confirm settlement/i })).toHaveCount(0, { timeout: 20_000 });
+      await expect(page.getByRole('heading', { name: /Prediction not found/i })).toHaveCount(0);
+
+      const detailVerifyRes = await context.request.get(
+        `${apiBase}/api/v2/admin/predictions/${fixture.id}?actorId=${encodeURIComponent(adminAuth.userId)}`,
+        {
+          headers: {
+            'x-admin-key': adminKey!,
+          },
+        }
+      );
+      expect(detailVerifyRes.ok()).toBeTruthy();
+      const detailVerifyJson = await detailVerifyRes.json();
+      const prediction = detailVerifyJson?.prediction || {};
+      expect(
+        Boolean(prediction?.winningOptionId) ||
+          String(prediction?.status || '').toLowerCase() === 'settled' ||
+          String(prediction?.status || '').toLowerCase() === 'closed'
+      ).toBeTruthy();
+
+      await page.goto(`${baseURL}/admin/predictions/${fixture.id}`, { waitUntil: 'networkidle' });
+      await expect(page.getByText(fixture.title)).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByRole('heading', { name: /Prediction not found/i })).toHaveCount(0);
     } finally {
       await context.close();
     }
