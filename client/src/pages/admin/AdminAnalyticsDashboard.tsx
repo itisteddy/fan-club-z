@@ -41,7 +41,7 @@ import {
   Clock,
   XCircle,
 } from 'lucide-react';
-import { adminGet } from '@/lib/adminApi';
+import { adminGet, adminPost } from '@/lib/adminApi';
 import { useAuthSession } from '@/providers/AuthSessionProvider';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -641,9 +641,9 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ rows, summary, loading, error
 
       {rows.length === 0 && !loading && (
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-12 text-center">
-          <BarChart2 className="w-8 h-8 text-slate-600 mx-auto mb-3" />
-          <p className="text-slate-400">No data for this period.</p>
-          <p className="text-slate-500 text-sm mt-1">Run a backfill from the overview page to populate analytics.</p>
+          <BarChart2 className="w-10 h-10 text-slate-500 mx-auto mb-4" />
+          <p className="text-slate-200 font-medium">No data for this period.</p>
+          <p className="text-slate-400 text-sm mt-1">Run a backfill to populate analytics snapshots.</p>
         </div>
       )}
 
@@ -708,6 +708,16 @@ const GrowthTab: React.FC<OverviewTabProps> = ({ rows, loading, error }) => {
       <p className="text-amber-500 text-sm mt-0.5">{error}</p>
     </div>
   );
+
+  if (rows.length === 0) {
+    return (
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-12 text-center">
+        <TrendingUp className="w-10 h-10 text-slate-500 mx-auto mb-4" />
+        <p className="text-slate-200 font-medium">No growth data for this period.</p>
+        <p className="text-slate-400 text-sm mt-1">Run a backfill to populate analytics snapshots.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -879,8 +889,9 @@ const ReferralTab: React.FC<ReferralTabProps> = ({ period, userId }) => {
 
       {rows.length === 0 ? (
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-12 text-center">
-          <Trophy className="w-8 h-8 text-slate-600 mx-auto mb-3" />
-          <p className="text-slate-400">No referral data for this period.</p>
+          <Trophy className="w-10 h-10 text-slate-500 mx-auto mb-4" />
+          <p className="text-slate-200 font-medium">No referral data for this period.</p>
+          <p className="text-slate-400 text-sm mt-1">Run a backfill from Team Referrals.</p>
         </div>
       ) : (
         <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
@@ -993,6 +1004,16 @@ const EngagementTab: React.FC<OverviewTabProps> = ({ rows, loading, error }) => 
     </div>
   );
 
+  if (rows.length === 0) {
+    return (
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-12 text-center">
+        <Activity className="w-10 h-10 text-slate-500 mx-auto mb-4" />
+        <p className="text-slate-200 font-medium">No engagement data for this period.</p>
+        <p className="text-slate-400 text-sm mt-1">Run a backfill to populate analytics snapshots.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Economy KPIs */}
@@ -1071,8 +1092,9 @@ const OpsTab: React.FC<OpsTabProps> = ({ ops, loading, error }) => {
 
   if (!ops) return (
     <div className="bg-slate-800 border border-slate-700 rounded-xl p-12 text-center">
-      <Zap className="w-8 h-8 text-slate-600 mx-auto mb-3" />
-      <p className="text-slate-400">No ops data available.</p>
+      <Zap className="w-10 h-10 text-slate-500 mx-auto mb-4" />
+      <p className="text-slate-200 font-medium">No ops data available.</p>
+      <p className="text-slate-400 text-sm mt-1">Run a backfill to populate analytics snapshots.</p>
     </div>
   );
 
@@ -1343,6 +1365,29 @@ const AdminAnalyticsDashboard: React.FC = () => {
     if (tab === 'ops') loadOps();
   }, [tab, loadOverview, loadOps]);
 
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillMsg, setBackfillMsg] = useState<string | null>(null);
+  const handleBackfill = useCallback(async () => {
+    if (!window.confirm('Backfill last 90 days of analytics snapshots? This may take a few seconds.')) return;
+    setBackfilling(true);
+    setBackfillMsg(null);
+    try {
+      const start = new Date();
+      start.setDate(start.getDate() - 90);
+      const startDay = start.toISOString().slice(0, 10);
+      const endDay = new Date().toISOString().slice(0, 10);
+      const res = await adminPost<any>('/api/v2/admin/analytics/backfill', userId, { startDay, endDay });
+      const payload = res?.data ?? res;
+      setBackfillMsg(`Backfill complete: ${payload?.daysProcessed ?? 0} days processed`);
+      if (['overview', 'growth', 'engagement'].includes(tab)) loadOverview();
+      if (tab === 'ops') loadOps();
+    } catch (e: any) {
+      setBackfillMsg(`Backfill failed: ${e?.message ?? 'Unknown error'}`);
+    } finally {
+      setBackfilling(false);
+    }
+  }, [userId, tab, loadOverview, loadOps]);
+
   const isLoading = overviewLoading || opsLoading;
 
   // Never render blank: show loading when session not ready
@@ -1357,13 +1402,32 @@ const AdminAnalyticsDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Backfill banner */}
+      {backfillMsg && (
+        <div className="bg-emerald-900/30 border border-emerald-700 rounded-xl px-4 py-2.5 text-emerald-200 text-sm flex justify-between items-center">
+          {backfillMsg}
+          <button onClick={() => setBackfillMsg(null)} className="text-emerald-400 hover:text-emerald-300">✕</button>
+        </div>
+      )}
+
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Analytics</h1>
           <p className="text-slate-400 text-sm mt-0.5">Platform-wide metrics and performance data</p>
         </div>
-        <PresetBar onApply={applyPreset} activePresetId={activePresetId} />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleBackfill}
+            disabled={backfilling}
+            className="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-sm font-medium text-slate-200 hover:text-white transition-colors disabled:opacity-50"
+            title="Backfill last 90 days of analytics snapshots"
+          >
+            <RefreshCw className={`w-4 h-4 ${backfilling ? 'animate-spin' : ''}`} />
+            {backfilling ? 'Backfilling…' : 'Backfill 90d'}
+          </button>
+          <PresetBar onApply={applyPreset} activePresetId={activePresetId} />
+        </div>
       </div>
 
       {/* Tabs */}

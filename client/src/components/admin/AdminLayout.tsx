@@ -39,7 +39,12 @@ const navItems = [
 export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const { user } = useAuthSession();
   const navigate = useNavigate();
-  const appUrl = FRONTEND_URL || 'https://app.fanclubz.app';
+  // Use current origin when on staging so "Back to App" stays on staging
+  const hostname = typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
+  const appUrl =
+    hostname.includes('staging')
+      ? (typeof window !== 'undefined' ? window.location.origin : 'https://fanclubz-staging.vercel.app')
+      : (FRONTEND_URL || 'https://app.fanclubz.app');
   const [openReportsCount, setOpenReportsCount] = useState<number>(0);
 
   useEffect(() => {
