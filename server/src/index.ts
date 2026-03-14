@@ -278,6 +278,7 @@ import { validatePaymentsEnv } from './utils/envValidation';
 import { ensureAvatarsBucket, ensurePredictionImagesBucket } from './startup/storage';
 import { startReconciliationJob } from './cron/reconcileEscrow';
 import { startLockExpirationJob } from './cron/expireLocks';
+import { runAnalyticsSnapshot } from './cron/analyticsSnapshot';
 import { initRealtime } from './services/realtime';
 
 // Use routes
@@ -476,6 +477,13 @@ httpServer.listen(PORT, HOST as any, async () => {
   // This prevents locks from staying forever even in demo/test environments
   startLockExpirationJob();
   console.log('✅ Lock expiration cron job started');
+
+  // Analytics daily snapshot – runs once at startup for yesterday, then every 24h.
+  // Fails gracefully if migration 344 hasn't been applied yet.
+  const ANALYTICS_INTERVAL_MS = 24 * 60 * 60 * 1000;
+  runAnalyticsSnapshot();
+  setInterval(runAnalyticsSnapshot, ANALYTICS_INTERVAL_MS);
+  console.log('✅ Analytics daily snapshot cron started');
 });
 
 export default app;

@@ -55,6 +55,8 @@ const LazyConfigPage = lazy(() => import('./pages/admin/ConfigPage'));
 const LazySettlementsPage = lazy(() => import('./pages/admin/SettlementsPage'));
 const LazySettlementDetailPage = lazy(() => import('./pages/admin/SettlementDetailPage'));
 const LazySupportPage = lazy(() => import('./pages/admin/SupportPage'));
+const LazyAnalyticsPage = lazy(() => import('./pages/admin/AnalyticsPage'));
+const LazyReferralScorecardsPage = lazy(() => import('./pages/admin/ReferralScorecardsPage'));
 
 
 // Import all page components
@@ -903,6 +905,26 @@ const AppContent: React.FC = () => {
                   <AdminGuard>
                     <AdminLayout>
                       <LazySupportPage />
+                    </AdminLayout>
+                  </AdminGuard>
+                }
+              />
+              <Route
+                path="/admin/analytics"
+                element={
+                  <AdminGuard>
+                    <AdminLayout>
+                      <LazyAnalyticsPage />
+                    </AdminLayout>
+                  </AdminGuard>
+                }
+              />
+              <Route
+                path="/admin/analytics/referrals"
+                element={
+                  <AdminGuard>
+                    <AdminLayout>
+                      <LazyReferralScorecardsPage />
                     </AdminLayout>
                   </AdminGuard>
                 }
