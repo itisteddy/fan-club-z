@@ -279,6 +279,8 @@ import { ensureAvatarsBucket, ensurePredictionImagesBucket } from './startup/sto
 import { startReconciliationJob } from './cron/reconcileEscrow';
 import { startLockExpirationJob } from './cron/expireLocks';
 import { runAnalyticsSnapshot } from './cron/analyticsSnapshot';
+import { runRetentionCompute } from './cron/retentionCompute';
+import { eventsRouter } from './routes/events';
 import { initRealtime } from './services/realtime';
 
 // Use routes
@@ -329,6 +331,9 @@ app.use(referralRoutes);
 
 // Badge routes (feature-flagged internally)
 app.use(badgeRoutes);
+
+// Client-side product event ingest (non-financial events only; rate-limited)
+app.use('/api/v2/events', eventsRouter);
 
 // Admin dashboard API
 app.use('/api/v2/admin', adminRouter);
@@ -484,6 +489,12 @@ httpServer.listen(PORT, HOST as any, async () => {
   runAnalyticsSnapshot();
   setInterval(runAnalyticsSnapshot, ANALYTICS_INTERVAL_MS);
   console.log('✅ Analytics daily snapshot cron started');
+
+  // Retention + qualified-referral compute – runs after the snapshot cron.
+  // Fails gracefully if migration 346 hasn't been applied yet.
+  runRetentionCompute();
+  setInterval(runRetentionCompute, ANALYTICS_INTERVAL_MS);
+  console.log('✅ Retention + qualified-referral cron started');
 });
 
 export default app;

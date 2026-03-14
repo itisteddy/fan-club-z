@@ -23,6 +23,7 @@ import { requireSupabaseAuth } from '../middleware/requireSupabaseAuth';
 import { requireTermsAccepted } from '../middleware/requireTermsAccepted';
 import { isCryptoAllowedForClient } from '../middleware/requireCryptoEnabled';
 import type { AuthenticatedRequest } from '../middleware/auth';
+import { logProductEvent } from '../services/analyticsEventService';
 
 /**
  * Helper to enrich prediction with category info (backward compatible)
@@ -1377,6 +1378,19 @@ router.post('/', requireSupabaseAuth, requireTermsAccepted, async (req, res) => 
     }
 
     console.log('✅ Prediction created successfully:', completePrediction.id);
+
+    // Instrument: prediction_created (fire-and-forget)
+    logProductEvent({
+      eventName: 'prediction_created',
+      userId: currentUserId,
+      idempotencyKey: `prediction_created:${completePrediction.id}`,
+      properties: {
+        predictionId: completePrediction.id,
+        categoryId: (completePrediction as any).category_id ?? null,
+        type: (completePrediction as any).type ?? null,
+        settlementMethod: (completePrediction as any).settlement_method ?? null,
+      },
+    });
 
     return res.json({
       data: completePrediction,
