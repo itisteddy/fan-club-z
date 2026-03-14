@@ -70,7 +70,7 @@ export const ACTIVITY_ICONS: Record<ActivityKind, string> = {
 export const ACTIVITY_LABELS: Record<ActivityKind, string> = {
   deposit: 'Deposit',
   withdraw: 'Withdrawal',
-  lock: 'Locked',
+  lock: 'Staked',
   release: 'Released',
   entry: 'Bet Placed',
   claim: 'Claimed',
@@ -316,4 +316,3 @@ export function getBlockExplorerUrl(txHash: string, chainId?: number): string {
   
   return `${baseUrl}/tx/${txHash}`;
 }
-

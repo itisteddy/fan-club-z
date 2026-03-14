@@ -146,7 +146,7 @@ walletActivity.get('/activity', async (req, res) => {
         // Demo ledger mapping (separate from crypto channels)
         if (isDemo) {
           if (metaKind === 'demo_faucet') {
-            kind = 'deposit';
+            kind = 'claim';
             description = description || 'Zaurum claimed';
           } else if (metaKind === 'bet_lock' || tx.type === 'bet_lock') {
             kind = 'bet_placed';

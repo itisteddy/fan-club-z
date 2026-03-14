@@ -192,7 +192,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
         throw new Error(json?.message || 'Failed to claim Zaurum');
       }
       await queryClient.invalidateQueries({ queryKey: ['wallet', 'summary', user.id], exact: false });
-      await queryClient.invalidateQueries({ queryKey: QK.walletActivity(user.id) });
+      await queryClient.invalidateQueries({ queryKey: QK.walletActivity(user.id, 20) });
       await Promise.all([refetchActivity(), refetchWalletSummary()]);
       const nextEligibleAt = json?.nextEligibleAt ? Date.parse(String(json.nextEligibleAt)) : NaN;
       const nextAt = Number.isFinite(nextEligibleAt) ? nextEligibleAt : Date.now() + 24 * 60 * 60 * 1000;
@@ -239,7 +239,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
 
   const isLoading = isFiatMode ? loadingFiat : (loadingWalletBalance || loadingSnapshot);
   const creatorEarningsBalance = Number(walletSummary?.creatorEarnings ?? walletSummary?.balances?.creatorEarnings ?? 0);
-  // Chunk 2: visible wallet model for Zaurum is Available + Locked + Creator Earnings.
+  // Chunk: visible wallet model for Zaurum is Available + Staked + Creator Earnings.
   const stakeBalance = Number(walletSummary?.available ?? walletSummary?.stakeBalance ?? walletSummary?.balances?.stakeBalance ?? 0);
   const stakeLockedBalance = Number(walletSummary?.reserved ?? walletSummary?.reservedUSDC ?? 0);
   const parsedTransferAmount = Number.parseFloat(creatorTransferAmount || '0');
@@ -346,6 +346,8 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
         return { Icon: RefreshCw, color: 'purple' };
       case 'payout':
         return { Icon: Gift, color: 'green' };
+      case 'claim':
+        return { Icon: Gift, color: 'green' };
       case 'creator_fee':
         return { Icon: Gift, color: 'emerald' };
       case 'platform_fee':
@@ -372,6 +374,8 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
         return 'Bet Refunded';
       case 'payout':
         return 'Payout';
+      case 'claim':
+        return 'Zaurum Claimed';
       case 'creator_fee':
         return 'Creator Earnings';
       case 'platform_fee':
@@ -490,11 +494,11 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                       subtitle="Ready to stake"
                     />
                     <StatCard
-                      label="Locked"
+                      label="Staked"
                       value={formatZaurumAmount(stakeLockedBalance)}
                       variant="default"
                       icon={<Lock className="w-4 h-4" />}
-                      subtitle="Currently locked"
+                      subtitle="Currently staked"
                     />
                     <StatCard
                       label="Creator Earnings"
@@ -525,7 +529,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                       value={formatZaurumAmount(walletSummary?.reserved ?? 0)}
                       variant="default"
                       icon={<Lock className="w-4 h-4" />}
-                      subtitle="Currently locked"
+                      subtitle="Currently staked"
                     />
                   </>
                 )
@@ -556,7 +560,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                     currency="NGN"
                     compact
                     icon={<Lock className="w-4 h-4" />}
-                    subtitle="Currently locked"
+                    subtitle="Currently staked"
                   />
                 </>
               ) : (
@@ -580,7 +584,7 @@ const WalletPage: React.FC<WalletPageProps> = ({ onNavigateBack }) => {
                     value={reservedUSD}
                     variant="currency"
                     icon={<Lock className="w-4 h-4" />}
-                    subtitle="Currently locked"
+                    subtitle="Currently staked"
                   />
                 </>
               )}

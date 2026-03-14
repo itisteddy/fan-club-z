@@ -443,18 +443,30 @@ router.post('/me/restore', requireSupabaseAuthAllowDeleted, async (req: Authenti
   }
 
   try {
+    const nowIso = new Date().toISOString();
+    const { data: userRow } = await supabase
+      .from('users')
+      .select('username')
+      .eq('id', userId)
+      .maybeSingle();
+    const currentUsername = String((userRow as any)?.username || '');
+    const restoredUsername = currentUsername.startsWith('deleted_')
+      ? `restored_${userId.slice(0, 8)}`
+      : currentUsername || `user_${userId.slice(0, 8)}`;
+
     // Restore: set status to active, clear deleted_at
     // Try new column first
     const newColUpdate = await supabase
       .from('users')
       .update({
+        username: restoredUsername,
         account_status: 'active',
         deleted_at: null,
         is_banned: false,
         ban_reason: null,
         banned_at: null,
         banned_by: null,
-        updated_at: new Date().toISOString(),
+        updated_at: nowIso,
       })
       .eq('id', userId);
 
@@ -463,11 +475,12 @@ router.post('/me/restore', requireSupabaseAuthAllowDeleted, async (req: Authenti
       const legacyUpdate = await supabase
         .from('users')
         .update({
+          username: restoredUsername,
           is_banned: false,
           ban_reason: null,
           banned_at: null,
           banned_by: null,
-          updated_at: new Date().toISOString(),
+          updated_at: nowIso,
         })
         .eq('id', userId);
 
@@ -476,7 +489,8 @@ router.post('/me/restore', requireSupabaseAuthAllowDeleted, async (req: Authenti
         const minimalUpdate = await supabase
           .from('users')
           .update({
-            updated_at: new Date().toISOString(),
+            username: restoredUsername,
+            updated_at: nowIso,
           })
           .eq('id', userId);
 

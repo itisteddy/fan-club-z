@@ -64,6 +64,21 @@ function loadAuthFromStorageState(storagePath: string): StoredAuth {
   return parsed;
 }
 
+async function loadAuthFromRuntime(page: Page): Promise<StoredAuth | null> {
+  const runtimeEntries = await page.evaluate(() => {
+    const out: Array<{ name: string; value: string }> = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      const value = localStorage.getItem(key);
+      if (value == null) continue;
+      out.push({ name: key, value });
+    }
+    return out;
+  });
+  return parseAuthFromEntries(runtimeEntries);
+}
+
 async function assertAdminCapable(apiBase: string, auth: StoredAuth): Promise<boolean> {
   const res = await fetch(`${apiBase}/api/v2/admin/audit?limit=1&actorId=${encodeURIComponent(auth.userId)}`, {
     headers: {
@@ -145,14 +160,17 @@ test.describe('Admin settlement browser E2E', () => {
       'Missing FCZ_E2E_BASE_URL / FCZ_E2E_API_BASE / FCZ_E2E_ADMIN_STORAGE_STATE');
     test.skip(!adminKey, 'Missing FCZ_E2E_ADMIN_KEY (required for admin UI key-gate)');
 
-    const adminAuth = loadAuthFromStorageState(adminStorageState!);
-    const isAdmin = await assertAdminCapable(apiBase!, adminAuth);
-    test.skip(!isAdmin, `Configured admin storage-state user is not admin-capable: ${adminAuth.userId}`);
-
-    const fixture = await createAndClosePrediction(apiBase!, adminAuth, 'E2E admin settle');
-
     const { context, page } = await openContextPage(browser, adminStorageState!, { adminKey: adminKey! });
     try {
+      await page.goto(`${baseURL}/profile`, { waitUntil: 'networkidle' });
+      const runtimeAuth = await loadAuthFromRuntime(page);
+      const storageAuth = loadAuthFromStorageState(adminStorageState!);
+      const adminAuth = runtimeAuth || storageAuth;
+      const isAdmin = await assertAdminCapable(apiBase!, adminAuth);
+      test.skip(!isAdmin, `Configured admin session is not admin-capable: ${adminAuth.userId}`);
+
+      const fixture = await createAndClosePrediction(apiBase!, adminAuth, 'E2E admin settle');
+
       const observedAdminCalls: Array<{ status: number; method: string; url: string }> = [];
       const pageErrors: string[] = [];
       const consoleErrors: string[] = [];

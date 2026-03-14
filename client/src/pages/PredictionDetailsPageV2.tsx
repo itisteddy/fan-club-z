@@ -674,7 +674,7 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
       if (userId) {
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: QK.walletSummary(userId, lowerWallet) }),
-          queryClient.invalidateQueries({ queryKey: QK.walletActivity(userId) }),
+          queryClient.invalidateQueries({ queryKey: QK.walletActivity(userId, 20) }),
           queryClient.invalidateQueries({ queryKey: QK.escrowBalance(userId) }),
           queryClient.invalidateQueries({ queryKey: QK.onchainActivity(userId) }),
           queryClient.invalidateQueries({ queryKey: QK.prediction(predictionId) }),
@@ -909,7 +909,11 @@ const PredictionDetailsPage: React.FC<PredictionDetailsPageProps> = ({
   if (!prediction) return null;
 
   const participantCount = prediction?.participant_count ?? 0;
-  const totalVolume = totalPool;
+  const totalVolume = Math.max(
+    totalPool,
+    Number(prediction?.pool_total || 0),
+    Number((prediction as any)?.total_volume || 0)
+  );
 
   return (
     <>

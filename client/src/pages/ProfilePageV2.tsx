@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Edit3, User, Activity, TrendingUp, Target, Trophy, Upload, X, Mail, XCircle } from 'lucide-react';
+import { Edit3, User, Activity, TrendingUp, Target, Trophy, Upload, X, Mail, XCircle, ArrowLeft } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useAuthSession } from '../providers/AuthSessionProvider';
@@ -596,7 +596,18 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
 
   return (
     <div className="min-h-screen bg-gray-50 pb-[calc(5rem+env(safe-area-inset-bottom))]">
-      <AppHeader title="Profile" />
+      <AppHeader
+        title="Profile"
+        left={isPublicRoute ? (
+          <button
+            onClick={() => navigate(-1)}
+            className="p-2 -ml-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+            aria-label="Go back"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+        ) : undefined}
+      />
       
       <div className="mx-auto w-full max-w-[720px] lg:max-w-[960px] px-4 py-4">
         <div className="space-y-4">
@@ -908,8 +919,17 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
     {showDeleteModal && (
       <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-          <div className="px-5 py-4 border-b border-gray-100">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
             <h2 className="text-base font-semibold text-gray-900">Delete account?</h2>
+            <button
+              type="button"
+              onClick={() => setShowDeleteModal(false)}
+              disabled={deletingAccount}
+              className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-50"
+              aria-label="Close"
+            >
+              <X className="w-4 h-4 text-gray-600" />
+            </button>
           </div>
           <div className="px-5 py-4 space-y-3">
             <p className="text-sm text-gray-700">
@@ -1046,9 +1066,10 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
             <h2 className="text-sm font-semibold text-gray-900">All Activity</h2>
             <button
               onClick={() => setShowActivityModal(false)}
-              className="text-xs text-gray-500 hover:text-gray-700"
+              className="p-1.5 rounded-lg hover:bg-gray-100"
+              aria-label="Close"
             >
-              Close
+              <X className="w-4 h-4 text-gray-600" />
             </button>
           </div>
           <div className="overflow-y-auto divide-y divide-gray-100 max-h-[calc(80vh-3.5rem)] sm:max-h-[calc(80vh-3rem)] pr-1">
