@@ -804,11 +804,12 @@ const ReferralTab: React.FC<ReferralTabProps> = ({ period, userId }) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await adminGet<any>(
+      const res = await adminGet<any>(
         `/api/v2/admin/analytics/team/leaderboard`,
         userId,
         { period, limit: 50 }
       );
+      const data = res?.data ?? res;
       setRows((data?.items ?? []).map((r: any) => ({
         memberId:              r.memberId,
         username:              r.username ?? r.fullName ?? '—',
@@ -1297,9 +1298,10 @@ const AdminAnalyticsDashboard: React.FC = () => {
       const params: Record<string, string> = { period };
       if (dateFrom) params.dateFrom = dateFrom;
       if (dateTo)   params.dateTo   = dateTo;
-      const data = await adminGet<any>('/api/v2/admin/analytics/overview', userId, params);
-      setOverviewRows(data?.rows ?? []);
-      setOverviewSummary(data?.summary ?? null);
+      const res = await adminGet<any>('/api/v2/admin/analytics/overview', userId, params);
+      const payload = res?.data ?? res;
+      setOverviewRows(payload?.rows ?? []);
+      setOverviewSummary(payload?.summary ?? null);
     } catch (e: any) {
       setOverviewError(e?.message ?? 'Failed to load overview');
     } finally {
@@ -1316,8 +1318,8 @@ const AdminAnalyticsDashboard: React.FC = () => {
       const params: Record<string, string> = { period };
       if (dateFrom) params.dateFrom = dateFrom;
       if (dateTo)   params.dateTo   = dateTo;
-      const data = await adminGet<any>('/api/v2/admin/analytics/ops', userId, params);
-      setOpsData(data ?? null);
+      const res = await adminGet<any>('/api/v2/admin/analytics/ops', userId, params);
+      setOpsData(res?.data ?? res ?? null);
     } catch (e: any) {
       setOpsError(e?.message ?? 'Failed to load ops data');
     } finally {
@@ -1341,6 +1343,13 @@ const AdminAnalyticsDashboard: React.FC = () => {
   }, [tab, loadOverview, loadOps]);
 
   const isLoading = overviewLoading || opsLoading;
+
+  if (!userId) return (
+    <div className="flex items-center justify-center py-20 gap-3 text-slate-400">
+      <Loader2 className="w-5 h-5 animate-spin" />
+      <span>Loading session…</span>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
