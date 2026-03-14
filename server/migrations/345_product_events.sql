@@ -68,8 +68,10 @@ CREATE INDEX IF NOT EXISTS idx_product_events_user_event
   ON public.product_events (user_id, event_name, occurred_at DESC);
 
 -- Time-series aggregation (e.g. COUNT per day per event)
+-- Note: occurred_at::DATE cannot be used in an index expression (STABLE, not IMMUTABLE).
+-- Index on (event_name, occurred_at) serves the same range queries; cast in WHERE clause.
 CREATE INDEX IF NOT EXISTS idx_product_events_event_day
-  ON public.product_events (event_name, (occurred_at::DATE) DESC);
+  ON public.product_events (event_name, occurred_at DESC);
 
 -- General time-series scan
 CREATE INDEX IF NOT EXISTS idx_product_events_occurred
