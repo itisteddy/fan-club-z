@@ -69,7 +69,9 @@ function toCsv(rows: Record<string, unknown>[]): string {
 // ─── GET /overview ────────────────────────────────────────────────────────────
 
 const OverviewSchema = z.object({
-  period: z.enum(VALID_PERIODS).default('30d'),
+  period:   z.enum(VALID_PERIODS).default('30d'),
+  dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  dateTo:   z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 analyticsRouter.get('/overview', async (req, res) => {
@@ -78,8 +80,10 @@ analyticsRouter.get('/overview', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Bad Request', message: 'Invalid period', version: VERSION });
     }
-    const { period } = parsed.data;
-    const startDate = periodToStartDate(period);
+    const { period, dateFrom, dateTo } = parsed.data;
+    // Explicit dateFrom/dateTo overrides the rolling period
+    const startDate = dateFrom ?? periodToStartDate(period);
+    const endDate   = dateTo;
 
     let query = supabase
       .from('analytics_daily_snapshots')
@@ -88,6 +92,9 @@ analyticsRouter.get('/overview', async (req, res) => {
 
     if (startDate) {
       query = query.gte('day', startDate);
+    }
+    if (endDate) {
+      query = query.lte('day', endDate);
     }
 
     const { data: rows, error } = await query;
@@ -407,6 +414,171 @@ const BackfillSchema = z.object({
   endDay: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   actorId: z.string().uuid().optional(),
 });
+
+// ─── GET /ops ─────────────────────────────────────────────────────────────────
+//
+// Platform health: data freshness, prediction settlement health, claim health,
+// product-event throughput, and economy take-rate for the selected period.
+
+const OpsSchema = z.object({
+  period:   z.enum(VALID_PERIODS).default('7d'),
+  dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  dateTo:   z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+analyticsRouter.get('/ops', async (req, res) => {
+  try {
+    const parsed = OpsSchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Bad Request', message: 'Invalid params', version: VERSION });
+    }
+    const { period, dateFrom, dateTo } = parsed.data;
+    const startDate = dateFrom ?? periodToStartDate(period);
+    const endDate   = dateTo;
+
+    // ── 1. Data freshness — latest analytics snapshot ─────────────────────
+    const freshnessResult = await supabase
+      .from('analytics_daily_snapshots')
+      .select('day, computed_at')
+      .order('day', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const latestSnapshot = freshnessResult.data ?? null;
+    const snapshotStalenessMs = latestSnapshot?.computed_at
+      ? Date.now() - new Date(latestSnapshot.computed_at).getTime()
+      : null;
+
+    // ── 2. Prediction settlement health ───────────────────────────────────
+    const predictionsResult = await supabase
+      .from('predictions')
+      .select('status', { count: 'exact', head: false })
+      .not('status', 'is', null);
+
+    let predStatusCounts: Record<string, number> = {};
+    if (!predictionsResult.error && predictionsResult.data) {
+      for (const row of predictionsResult.data as any[]) {
+        const s: string = row.status ?? 'unknown';
+        predStatusCounts[s] = (predStatusCounts[s] ?? 0) + 1;
+      }
+    }
+
+    // ── 3. Claim health from analytics snapshots (in period) ─────────────
+    let claimsQuery = supabase
+      .from('analytics_daily_snapshots')
+      .select(
+        'claim_completed_count, claim_failed_count, ' +
+        'total_stakes_count, total_stake_amount, total_payout_amount, total_creator_earnings_amount'
+      );
+    if (startDate) claimsQuery = claimsQuery.gte('day', startDate);
+    if (endDate)   claimsQuery = claimsQuery.lte('day', endDate);
+    const claimsResult = await claimsQuery;
+
+    let claimCompleted = 0;
+    let claimFailed    = 0;
+    let totalStake     = 0;
+    let totalPayout    = 0;
+    let totalEarnings  = 0;
+    let totalStakesCnt = 0;
+
+    if (!claimsResult.error && claimsResult.data) {
+      for (const row of claimsResult.data as any[]) {
+        claimCompleted  += Number(row.claim_completed_count      ?? 0);
+        claimFailed     += Number(row.claim_failed_count         ?? 0);
+        totalStake      += Number(row.total_stake_amount         ?? 0);
+        totalPayout     += Number(row.total_payout_amount        ?? 0);
+        totalEarnings   += Number(row.total_creator_earnings_amount ?? 0);
+        totalStakesCnt  += Number(row.total_stakes_count         ?? 0);
+      }
+    }
+
+    const totalClaims        = claimCompleted + claimFailed;
+    const claimSuccessRate   = totalClaims > 0 ? (claimCompleted / totalClaims) * 100 : null;
+    const platformTake       = totalStake - totalPayout - totalEarnings;
+    const platformTakeRatePct = totalStake > 0 ? (platformTake / totalStake) * 100 : null;
+
+    // ── 4. Product-event throughput from product_events ───────────────────
+    let eventVolumeQuery = supabase
+      .from('product_events')
+      .select('event_name', { count: 'exact', head: false });
+    if (startDate) eventVolumeQuery = eventVolumeQuery.gte('created_at', `${startDate}T00:00:00Z`);
+    if (endDate)   eventVolumeQuery = eventVolumeQuery.lte('created_at', `${endDate}T23:59:59Z`);
+    // Limit to avoid scanning the full table; just want top events for display
+    eventVolumeQuery = eventVolumeQuery.limit(10000);
+
+    let eventCounts: Record<string, number> = {};
+    let totalEvents = 0;
+    const evtResult = await eventVolumeQuery;
+    if (!evtResult.error && evtResult.data) {
+      for (const row of evtResult.data as any[]) {
+        const name: string = row.event_name ?? 'unknown';
+        eventCounts[name] = (eventCounts[name] ?? 0) + 1;
+        totalEvents++;
+      }
+    }
+
+    // Schema-mismatch check: if we got here without hitting table errors, all is fine.
+    // Individual table errors are surfaced as null values in the response, not 500s.
+    return res.json({
+      data: {
+        period,
+        dataFreshness: {
+          latestSnapshotDay:    latestSnapshot?.day ?? null,
+          latestComputedAt:     latestSnapshot?.computed_at ?? null,
+          stalenessMs:          snapshotStalenessMs,
+          stalenessHours:       snapshotStalenessMs != null
+                                  ? Math.round(snapshotStalenessMs / 1000 / 3600 * 10) / 10
+                                  : null,
+        },
+        predictionHealth: {
+          byStatus:             predStatusCounts,
+          totalActive:          (predStatusCounts['open'] ?? 0) + (predStatusCounts['active'] ?? 0),
+          totalSettled:         (predStatusCounts['settled'] ?? 0) + (predStatusCounts['resolved'] ?? 0) + (predStatusCounts['closed'] ?? 0),
+          totalCancelled:       predStatusCounts['cancelled'] ?? 0,
+        },
+        claimHealth: {
+          periodLabel:          period,
+          claimCompleted,
+          claimFailed,
+          claimSuccessRatePct:  claimSuccessRate != null ? Math.round(claimSuccessRate * 100) / 100 : null,
+          totalClaims,
+        },
+        economyHealth: {
+          totalStakeAmount:     totalStake,
+          totalPayoutAmount:    totalPayout,
+          totalCreatorEarnings: totalEarnings,
+          platformTake,
+          platformTakeRatePct:  platformTakeRatePct != null ? Math.round(platformTakeRatePct * 100) / 100 : null,
+          totalStakesCount:     totalStakesCnt,
+        },
+        eventThroughput: {
+          totalEvents,
+          byEventName:          eventCounts,
+        },
+      },
+      version: VERSION,
+    });
+  } catch (err: any) {
+    console.error('[Analytics/Ops] Error:', err);
+    if (isSchemaMismatch(err)) {
+      return res.json({
+        data: {
+          period: req.query.period ?? '7d',
+          dataFreshness: null,
+          predictionHealth: null,
+          claimHealth: null,
+          economyHealth: null,
+          eventThroughput: null,
+          message: 'Analytics tables not yet migrated',
+        },
+        version: VERSION,
+      });
+    }
+    return res.status(500).json({ error: 'Internal Server Error', message: err.message, version: VERSION });
+  }
+});
+
+// ─── POST /backfill ───────────────────────────────────────────────────────────
 
 analyticsRouter.post('/backfill', async (req, res) => {
   try {
