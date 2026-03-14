@@ -8,20 +8,35 @@ Postgres (Supabase)
   ├── v_referral_performance      ← live SQL view (migration 344)
   ├── user_stats_daily            ← per-user daily stats (migration 115/340)
   ├── referral_clicks             ← raw click log (migration 202)
-  ├── referral_attributions       ← signup attribution (migration 203)
+  ├── referral_attributions       ← signup attribution + activation/qualification flags (203/346)
+  ├── user_activation_status      ← per-user D1/D7/D30 retention window (migration 346)
+  ├── referral_daily_snapshots    ← per-referrer per-day fact table (migration 347)
+  ├── v_team_referral_scorecard   ← live all-time team scorecard (migration 347)
   └── wallet_transactions         ← financial ledger
 
 Express server
   └── /api/v2/admin/analytics/*   ← analytics routes (server/src/routes/admin/analytics.ts)
-        ├── GET /overview         ← time-series daily snapshots
+        ├── GET /overview         ← time-series daily snapshots (dateFrom/dateTo supported)
         ├── GET /referrals        ← per-referrer scorecard from v_referral_performance
         ├── GET /economy          ← financial breakdown
+        ├── GET /ops              ← platform health: freshness, claim health, event throughput
         ├── GET /export/csv       ← CSV download (referrals | users | snapshots)
         └── POST /backfill        ← re-compute snapshots for a date range
 
+  └── /api/v2/admin/analytics/team/*  ← team referral routes (teamAnalytics.ts)
+        ├── GET /leaderboard          ← quality-ranked leaderboard
+        ├── GET /:memberId/scorecard  ← full all-time scorecard per member
+        ├── GET /:memberId/cohort     ← cohort breakdown per member
+        ├── GET /:memberId/trend      ← daily time-series per member
+        ├── GET /export/csv           ← full team export
+        └── POST /backfill            ← compute referral_daily_snapshots
+
 React client
-  ├── /admin/analytics            ← AnalyticsPage (time-series overview + export)
-  └── /admin/analytics/referrals  ← ReferralScorecardsPage (per-referrer table)
+  ├── /admin/analytics                 ← AdminAnalyticsDashboard (5-tab unified dashboard)
+  │     tabs: Overview / Growth / Referral / Engagement / Ops
+  ├── /admin/analytics/team            ← TeamAnalyticsPage (leaderboard)
+  ├── /admin/analytics/team/:memberId  ← TeamMemberDetailPage (full scorecard)
+  └── /admin/analytics/referrals       ← ReferralScorecardsPage (legacy, still accessible)
 ```
 
 ---
@@ -31,21 +46,36 @@ React client
 ### New files
 | File | Purpose |
 |------|---------|
-| `server/migrations/344_analytics_daily_snapshots.sql` | DB migration: snapshot table, helper view, upsert function |
-| `server/src/routes/admin/analytics.ts` | All analytics API routes |
-| `server/src/cron/analyticsSnapshot.ts` | Nightly cron job + `upsertDailySnapshot` helper |
-| `client/src/pages/admin/AnalyticsPage.tsx` | Admin analytics overview page |
-| `client/src/pages/admin/ReferralScorecardsPage.tsx` | Referral scorecard page |
-| `docs/analytics/metric-dictionary.md` | Metric definitions |
+| `server/migrations/344_analytics_daily_snapshots.sql` | DB: snapshot table, `v_referral_performance`, upsert function |
+| `server/migrations/346_user_activation_retention.sql` | DB: `user_activation_status`, `referral_attributions` flags, qualified-referral RPC |
+| `server/migrations/347_team_referral_analytics.sql` | DB: `referral_daily_snapshots`, `v_team_referral_scorecard`, snapshot RPCs |
+| `server/src/routes/admin/analytics.ts` | All platform analytics API routes (overview, ops, export, backfill) |
+| `server/src/routes/admin/teamAnalytics.ts` | Team-member referral analytics routes (leaderboard, scorecard, cohort, trend) |
+| `server/src/cron/analyticsSnapshot.ts` | Nightly cron: `upsertDailySnapshot` |
+| `server/src/cron/retentionCompute.ts` | Daily cron: retention windows + qualified referral flags + referral snapshots |
+| `server/src/cron/weeklyReport.ts` | Weekly cron: structured report persisted to audit_log + optional Slack hook |
+| `server/src/constants/referralScoring.ts` | TypeScript composite-score weights + `computeCompositeScore` / `getScoreBreakdown` |
+| `client/src/pages/admin/AdminAnalyticsDashboard.tsx` | Unified 5-tab analytics dashboard |
+| `client/src/pages/admin/TeamAnalyticsPage.tsx` | Team referral leaderboard |
+| `client/src/pages/admin/TeamMemberDetailPage.tsx` | Full per-member scorecard + cohort + sparklines |
+| `client/src/pages/admin/AnalyticsPage.tsx` | Legacy analytics overview (preserved) |
+| `client/src/pages/admin/ReferralScorecardsPage.tsx` | Legacy referral scorecard (preserved) |
+| `server/src/__tests__/analyticsHelpers.test.ts` | Unit tests: CSV helpers, period math, summary aggregation |
+| `server/src/__tests__/referralScoring.test.ts` | Unit tests: composite score formula, breakdown, quality guarantees |
+| `server/src/__tests__/analyticsUrlState.test.ts` | Unit tests: URL filter state serialisation, preset application |
+| `docs/analytics/metric-dictionary.md` | All metric definitions |
+| `docs/analytics/team-referral-scoring.md` | Composite score formula documentation |
+| `docs/analytics/report-presets.md` | Saved report presets + shareable URL structure |
+| `docs/analytics/operator-guide.md` | Non-technical operator guide |
 | `docs/analytics/implementation-notes.md` | This file |
 
 ### Modified files
 | File | Change |
 |------|--------|
-| `server/src/routes/admin/index.ts` | Added `analyticsRouter` at `/analytics` |
-| `server/src/index.ts` | Added `runAnalyticsSnapshot` cron (startup + 24h interval) |
-| `client/src/App.tsx` | Added lazy imports + routes for analytics pages |
-| `client/src/components/admin/AdminLayout.tsx` | Added "Analytics" nav item with `BarChart2` icon |
+| `server/src/routes/admin/index.ts` | Added `teamAnalyticsRouter` at `/analytics/team` |
+| `server/src/index.ts` | Added analytics cron chain (snapshot → retention → weekly) |
+| `client/src/App.tsx` | Added routes for new dashboard + team analytics pages |
+| `client/src/components/admin/AdminLayout.tsx` | Added "Team Referrals" nav item |
 
 ---
 
@@ -85,43 +115,98 @@ FROM generate_series(
 
 ## API reference
 
-All routes are under `/api/v2/admin/analytics` and require admin auth (same `requireAdmin` middleware as other admin routes).
+All routes require admin auth (same `requireAdmin` middleware as other admin routes).
 
-### GET /overview
+### Platform analytics `/api/v2/admin/analytics`
+
+#### GET /overview
 ```
 ?period=7d|30d|90d|all   (default: 30d)
+?dateFrom=YYYY-MM-DD      (overrides period when set)
+?dateTo=YYYY-MM-DD
 ```
 Returns `{ data: { rows: DailyRow[], summary: Summary, period, rowCount } }`.
 
-### GET /referrals
+#### GET /ops
+```
+?period=7d|30d|90d|all   (default: 7d)
+?dateFrom=YYYY-MM-DD
+?dateTo=YYYY-MM-DD
+```
+Returns `{ data: { dataFreshness, predictionHealth, claimHealth, economyHealth, eventThroughput } }`.
+
+#### GET /referrals
 ```
 ?period=7d|30d|all         (default: 30d)
 ?sort=total_signups|active_referrals|referred_stake_total|conversion_rate_pct
 ?limit=1-200               (default: 50)
-?offset=0                  (default: 0)
+?offset=0
 ```
 Returns `{ data: { items: ReferralRow[], total, period, limit, offset } }`.
 
-### GET /economy
+#### GET /economy
 ```
 ?period=7d|30d|90d|all   (default: 30d)
 ```
 Returns `{ data: { rows: EconomyRow[], summary: EconomySummary, period } }`.
 
-### GET /export/csv
+#### GET /export/csv
 ```
 ?type=referrals|users|snapshots   (required)
 ?period=7d|30d|90d|all            (default: all)
 ?limit=1-10000                     (default: 5000)
-?actorId=<uuid>                    (logged in audit_log)
+?actorId=<uuid>
 ```
-Returns `text/csv` with `Content-Disposition: attachment`.
+Returns `text/csv` with `Content-Disposition: attachment`. Logged to `audit_log`.
 
-### POST /backfill
+#### POST /backfill
 ```json
 { "startDay": "2025-01-01", "endDay": "2025-03-13", "actorId": "<uuid>" }
 ```
 Calls `upsertDailySnapshot` for each day in range (max 365 days).
+
+---
+
+### Team referral analytics `/api/v2/admin/analytics/team`
+
+#### GET /leaderboard
+```
+?period=7d|30d|90d|all    (default: 30d)
+?dateFrom=YYYY-MM-DD
+?dateTo=YYYY-MM-DD
+?memberId=<uuid>           (filter to single member)
+?refCode=<code>            (filter by referral code)
+?limit=1-200               (default: 50)
+?offset=0
+?sort=composite_score|total_signups|qualified_count|d30_retained_count
+```
+Returns quality-ranked leaderboard with composite score recomputed from current TS weights.
+
+#### GET /:memberId/scorecard
+Full all-time metrics for one team member. Composite score recomputed live.
+
+#### GET /:memberId/cohort
+```
+?granularity=week|month   (default: week)
+```
+Referees grouped by signup week/month with activation/retention rates per cohort.
+
+#### GET /:memberId/trend
+```
+?period=7d|30d|90d|all
+?dateFrom=YYYY-MM-DD
+?dateTo=YYYY-MM-DD
+```
+Daily time-series from `referral_daily_snapshots` for sparklines.
+
+#### GET /export/csv
+Full leaderboard export (all members, all-time metrics + scoring breakdown).
+
+#### POST /backfill
+```json
+{ "daysBack": 90 }
+```
+Calls `backfill_referral_snapshots(daysBack)` RPC (migration 347).
 
 ---
 

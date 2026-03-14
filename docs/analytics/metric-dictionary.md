@@ -304,3 +304,58 @@ CREATE UNIQUE INDEX idx_product_events_idempotency
 ```
 
 Duplicate inserts (same key) are silently ignored (`ON CONFLICT DO NOTHING`). The service catches PostgreSQL error code `23505` and treats it as a no-op.
+
+---
+
+## 11. Data Quality Caveats
+
+The following caveats are surfaced in the Ops / Health tab of the admin dashboard
+and should be considered when interpreting any metric.
+
+| Caveat | Impact | Mitigation |
+|--------|--------|------------|
+| **Snapshots computed once per day** | Today's partial data is not available until ~00:10 UTC | Use the Ops tab to check staleness; for live data query raw tables directly |
+| **Active users = stakes + comments only** | Passive browsing (prediction views, tab opens) is not counted | This is intentional — economic activity is a stronger signal |
+| **Claim health lags up to 1 hour** | `claim_completed_count` / `claim_failed_count` depend on `product_events` pipeline; backpressure causes lag | Check `Ops → Data Freshness` before acting on claim health alerts |
+| **Platform take excludes fees** | Stripe/payment-processing fees, on-chain gas, and demo-mode volume are not excluded | Platform take is an approximation; reconcile with payment provider statements for exact revenue |
+| **Demo-mode not separated** | Demo-mode stakes inflate aggregate volume/payout/earnings figures | Wallet-mode segmentation filter is planned (see §12 Known Limitations) |
+| **Referral clicks are raw (not deduplicated)** | Same user clicking a link 5× = 5 clicks. Conversion rate = signups/clicks understates true conversion | Signups and qualified counts are properly deduplicated |
+| **Composite score weight drift** | TS weights (`DEFAULT_SCORING_WEIGHTS`) and SQL view weights can diverge if weights are changed without re-running the backfill | Documented in `docs/analytics/team-referral-scoring.md §How to Change Weights` |
+| **D7/D30 retention is window-close semantics** | D7 is counted when the window _closes_ (day 7), not when the user is first seen at day 7 | This means D7 counts won't appear until 7 days after signup batch; normal |
+
+---
+
+## 12. Known Limitations and Next Steps
+
+### Wallet-mode segmentation
+All economy metrics currently aggregate demo-mode (fake-money) and real-money stakes together.
+Planned: add `wallet_mode` column to `analytics_daily_snapshots` and surface a filter in the dashboard.
+This will allow the team to isolate real-money DAU, real-money stake volume, and real-money take-rate.
+
+### Optional BI Integration (Metabase / PostHog)
+The admin dashboard provides operator-facing analytics without a dedicated BI tool.
+For more advanced ad-hoc queries:
+- **Metabase**: Connect its PostgreSQL datasource to the Supabase database; query `analytics_daily_snapshots`,
+  `v_team_referral_scorecard`, and `referral_daily_snapshots` directly.
+- **PostHog**: Ingest `product_events` via a Supabase → PostHog CDC pipeline. PostHog's funnel
+  and cohort tools can complement the in-app dashboard for user-level analysis.
+
+### Cohort / LTV Analysis
+The current team referral pages show cohort activation and retention rates per signup week/month.
+Platform-level cohort LTV analysis (cumulative stake volume per signup cohort) is not yet built.
+Building it requires joining `referral_attributions` with `user_stats_daily` and grouping by
+`DATE_TRUNC('week', referral_attributions.signup_at)`.
+
+### Real-time streaming
+The current pipeline is batch-computed (daily). For near-real-time metrics (useful for live events /
+campaign launches), the pattern would be to:
+1. Subscribe to Supabase Realtime on `product_events` / `prediction_entries`
+2. Maintain an in-memory rolling counter in the Express server
+3. Surface via a `GET /api/v2/admin/analytics/realtime` endpoint
+
+This is out of scope for the current implementation but the data model supports it.
+
+### Automated weekly report delivery
+`server/src/cron/weeklyReport.ts` computes and persists weekly summaries.
+Slack delivery can be enabled by setting `SLACK_ANALYTICS_WEBHOOK_URL`.
+Email delivery (Sendgrid/Postmark) and PDF report generation are not yet implemented.

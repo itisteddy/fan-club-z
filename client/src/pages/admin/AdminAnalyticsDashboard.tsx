@@ -14,22 +14,22 @@
 import React, {
   useCallback,
   useEffect,
-  useMemo,
-  useRef,
   useState,
 } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Activity,
   AlertTriangle,
   ArrowUpRight,
   BarChart2,
+  Bookmark,
   CheckCircle,
   ChevronDown,
   ChevronUp,
   Download,
   DollarSign,
   Filter,
+  Info,
   Loader2,
   RefreshCw,
   TrendingUp,
@@ -42,8 +42,6 @@ import {
   XCircle,
 } from 'lucide-react';
 import { adminGet } from '@/lib/adminApi';
-import { buildAdminUrl } from '@/lib/adminApi';
-import { getAdminKey } from '@/components/admin/AdminGate';
 import { useAuthSession } from '@/providers/AuthSessionProvider';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -149,6 +147,58 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'ops',         label: 'Ops / Health',    icon: Zap },
 ];
 
+/** Saved report presets — one-click bookmark to a pre-configured view.
+ *  Each preset encodes a tab + period + optional date range.
+ *  The URL is fully shareable; copy the address bar after applying a preset.
+ */
+interface ReportPreset {
+  id:          string;
+  label:       string;
+  description: string;
+  tab:         Tab;
+  period:      Period;
+  dateFrom?:   string;
+  dateTo?:     string;
+}
+
+const REPORT_PRESETS: ReportPreset[] = [
+  {
+    id:          'executive',
+    label:       'Executive Overview',
+    description: 'High-level KPIs for the past 30 days',
+    tab:         'overview',
+    period:      '30d',
+  },
+  {
+    id:          'growth',
+    label:       'Growth Trends',
+    description: 'User acquisition and referral funnel — last 90 days',
+    tab:         'growth',
+    period:      '90d',
+  },
+  {
+    id:          'referral',
+    label:       'Referral / Team',
+    description: 'Leaderboard ranked by composite quality score',
+    tab:         'referral',
+    period:      '30d',
+  },
+  {
+    id:          'creator',
+    label:       'Creator Economy',
+    description: 'Stake volume, payouts, creator earnings — last 30 days',
+    tab:         'engagement',
+    period:      '30d',
+  },
+  {
+    id:          'ops',
+    label:       'Ops / Claim Health',
+    description: 'Platform health, data freshness, claim success rate',
+    tab:         'ops',
+    period:      '7d',
+  },
+];
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(n: number, decimals = 0): string {
@@ -183,6 +233,105 @@ function downloadCsv(content: string, filename: string) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+// ─── Preset Bar ───────────────────────────────────────────────────────────────
+
+interface PresetBarProps {
+  onApply: (preset: ReportPreset) => void;
+  activePresetId: string | null;
+}
+
+const PresetBar: React.FC<PresetBarProps> = ({ onApply, activePresetId }) => {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 border border-slate-700 hover:border-slate-500 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition-colors"
+        title="Saved report presets"
+      >
+        <Bookmark className="w-3.5 h-3.5" />
+        Presets
+        {activePresetId && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 ml-0.5" />}
+        <ChevronDown className="w-3 h-3 ml-0.5" />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full mt-1 z-20 w-72 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-slate-700">
+            <p className="text-xs font-semibold text-slate-300">Saved Report Presets</p>
+            <p className="text-xs text-slate-500 mt-0.5">Pre-configured views. URL updates for sharing.</p>
+          </div>
+          <div className="py-1">
+            {REPORT_PRESETS.map(p => (
+              <button
+                key={p.id}
+                onClick={() => { onApply(p); setOpen(false); }}
+                className={`w-full text-left px-4 py-2.5 hover:bg-slate-700/60 transition-colors ${
+                  activePresetId === p.id ? 'bg-emerald-900/20' : ''
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className={`text-xs font-medium ${activePresetId === p.id ? 'text-emerald-400' : 'text-slate-200'}`}>
+                    {p.label}
+                  </span>
+                  <span className="text-xs text-slate-600">{p.period}</span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">{p.description}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Click-outside close */}
+      {open && (
+        <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+      )}
+    </div>
+  );
+};
+
+// ─── Data Quality Caveats ─────────────────────────────────────────────────────
+
+const DataQualityCaveats: React.FC = () => {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4">
+      <button
+        className="w-full flex items-center justify-between"
+        onClick={() => setExpanded(v => !v)}
+      >
+        <span className="flex items-center gap-2 text-xs font-semibold text-slate-400">
+          <Info className="w-3.5 h-3.5 text-slate-500" />
+          Known Data Quality Caveats
+        </span>
+        {expanded ? <ChevronUp className="w-3.5 h-3.5 text-slate-500" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-500" />}
+      </button>
+      {expanded && (
+        <ul className="mt-3 space-y-2 text-xs text-slate-400 list-none">
+          {[
+            'analytics_daily_snapshots are computed once per day by a nightly cron. Today\'s partial data is NOT included until the cron runs (usually ~00:10 UTC).',
+            'Active users are counted as users with ≥1 stake or ≥1 comment on that calendar day. Passive browsing (views, clicks) is not counted.',
+            'Claim health (claim_completed_count / claim_failed_count) is based on product_events. If the product_events ingestion pipeline has backpressure, counts may lag by up to 1 hour.',
+            'Platform take = stake_volume − payouts − creator_earnings. This does not account for on-chain gas fees, Stripe fees, or demo-mode transactions. Demo-mode stakes may inflate volume figures.',
+            'Referral click counts are raw (not deduplicated by IP or session). Signups and qualified counts ARE deduplicated. Conversion rate = signups / clicks, which understates true conversion.',
+            'D7/D30 retention windows use signup_day + 7/30 as the close date. A user is retained if they were active on any day in the window, not necessarily on day 7/30 exactly.',
+            'Composite referral scores are recomputed in real-time from TypeScript weights. Pre-computed SQL scores (referral_daily_snapshots) use the weights hardcoded in migration 347 and may diverge if weights were changed without re-running the backfill.',
+            'Wallet-mode segmentation (demo vs real-money) is not yet surfaced as a filter. All economy metrics currently aggregate both modes.',
+          ].map((c, i) => (
+            <li key={i} className="flex gap-2">
+              <span className="text-slate-600 shrink-0">•</span>
+              <span>{c}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
 
 // ─── SVG Line Chart ───────────────────────────────────────────────────────────
 
@@ -1072,6 +1221,9 @@ const OpsTab: React.FC<OpsTabProps> = ({ ops, loading, error }) => {
           )}
         </div>
       )}
+
+      {/* Data quality caveats */}
+      <DataQualityCaveats />
     </div>
   );
 };
@@ -1101,6 +1253,28 @@ const AdminAnalyticsDashboard: React.FC = () => {
   const setPeriod  = (p: Period) => setParam('period',  p);
   const setDateFrom = (d: string) => setParam('dateFrom', d);
   const setDateTo   = (d: string) => setParam('dateTo',   d);
+
+  const applyPreset = useCallback((preset: ReportPreset) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('tab',    preset.tab);
+      next.set('period', preset.period);
+      if (preset.dateFrom) next.set('dateFrom', preset.dateFrom); else next.delete('dateFrom');
+      if (preset.dateTo)   next.set('dateTo',   preset.dateTo);   else next.delete('dateTo');
+      next.set('preset', preset.id);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  // Detect active preset by matching current params
+  const activePresetId = (() => {
+    const pId = searchParams.get('preset');
+    if (pId) return pId;
+    const match = REPORT_PRESETS.find(
+      p => p.tab === tab && p.period === period && !dateFrom && !dateTo
+    );
+    return match?.id ?? null;
+  })();
 
   // ── Data state ────────────────────────────────────────────────────────────
   const [overviewRows,    setOverviewRows]    = useState<DailyRow[]>([]);
@@ -1176,6 +1350,7 @@ const AdminAnalyticsDashboard: React.FC = () => {
           <h1 className="text-2xl font-bold text-white">Analytics</h1>
           <p className="text-slate-400 text-sm mt-0.5">Platform-wide metrics and performance data</p>
         </div>
+        <PresetBar onApply={applyPreset} activePresetId={activePresetId} />
       </div>
 
       {/* Tabs */}
