@@ -631,7 +631,10 @@ $$;
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 8. Updated v_referral_performance view (extends migration 344 version)
 --    Adds is_qualified, is_retained, activated counts.
+-- Note: DROP + recreate required because CREATE OR REPLACE VIEW cannot rename
+--       existing columns (PostgreSQL error 42P16).
 -- ─────────────────────────────────────────────────────────────────────────────
+DROP VIEW IF EXISTS public.v_referral_performance;
 CREATE OR REPLACE VIEW public.v_referral_performance AS
 WITH
   click_agg AS (
