@@ -50,22 +50,21 @@ const LandingAdminRouter: React.FC = () => {
     <AdminGate>
       <AdminLayout>
         <Routes>
-          <Route index element={<AdminHomePage />} />
-          <Route path="/" element={<AdminHomePage />} />
-          <Route path="users" element={<UsersPage />} />
-          <Route path="users/:userId" element={<UserDetailPage />} />
-          <Route path="users/:userId/view" element={<UserViewPage />} />
-          <Route path="wallets" element={<WalletsPage />} />
-          <Route path="wallets/:userId" element={<UserWalletPage />} />
-          <Route path="predictions" element={<PredictionsPage />} />
-          <Route path="predictions/:predictionId" element={<PredictionDetailPage />} />
-          <Route path="settlements" element={<SettlementsPage />} />
-          <Route path="settlements/:predictionId" element={<SettlementDetailPage />} />
-          <Route path="support" element={<SupportPage />} />
-          <Route path="moderation" element={<ModerationPage />} />
-          <Route path="config" element={<ConfigPage />} />
-          <Route path="categories" element={<CategoriesPage />} />
-          <Route path="audit" element={<AuditLogPage />} />
+          <Route path="/admin" element={<AdminHomePage />} />
+          <Route path="/admin/users" element={<UsersPage />} />
+          <Route path="/admin/users/:userId" element={<UserDetailPage />} />
+          <Route path="/admin/users/:userId/view" element={<UserViewPage />} />
+          <Route path="/admin/wallets" element={<WalletsPage />} />
+          <Route path="/admin/wallets/:userId" element={<UserWalletPage />} />
+          <Route path="/admin/predictions" element={<PredictionsPage />} />
+          <Route path="/admin/predictions/:predictionId" element={<PredictionDetailPage />} />
+          <Route path="/admin/settlements" element={<SettlementsPage />} />
+          <Route path="/admin/settlements/:predictionId" element={<SettlementDetailPage />} />
+          <Route path="/admin/support" element={<SupportPage />} />
+          <Route path="/admin/moderation" element={<ModerationPage />} />
+          <Route path="/admin/config" element={<ConfigPage />} />
+          <Route path="/admin/categories" element={<CategoriesPage />} />
+          <Route path="/admin/audit" element={<AuditLogPage />} />
         </Routes>
       </AdminLayout>
     </AdminGate>
@@ -73,4 +72,3 @@ const LandingAdminRouter: React.FC = () => {
 };
 
 export default LandingAdminRouter;
-
