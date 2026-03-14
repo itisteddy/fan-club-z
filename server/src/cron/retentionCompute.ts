@@ -12,14 +12,17 @@
 
 import { supabase } from '../config/database';
 
-let _tablesConfirmed: boolean | null = null;
+/** Activation backfill RPC available (migration 346). Skips future runs if migration missing. */
+let _activationRpcOk: boolean | null = null;
+/** Qualified-referrals RPC available (migration 346). Skips future runs if migration missing. */
+let _qualifiedRpcOk: boolean | null = null;
 
 /**
  * Refresh activation/retention for users whose retention windows became
  * computable recently (i.e. signed up in last 31 days).
  */
 export async function computeRecentRetention(daysBack = 31): Promise<void> {
-  if (_tablesConfirmed === false) return;
+  if ((_activationRpcOk as boolean | null) === false) return;
 
   try {
     const { error } = await supabase.rpc('backfill_user_activation_status', {
@@ -31,15 +34,15 @@ export async function computeRecentRetention(daysBack = 31): Promise<void> {
       const msg  = String((error as any).message ?? '').toLowerCase();
 
       if (code === '42883' || msg.includes('does not exist') || msg.includes('schema cache')) {
-        if (_tablesConfirmed !== false) {
+        if (_activationRpcOk !== false) {
           console.warn('[Retention] backfill_user_activation_status not available (run migration 346)');
-          _tablesConfirmed = false;
+          _activationRpcOk = false;
         }
         return;
       }
       console.error('[Retention] compute_recent_retention error:', error);
     } else {
-      _tablesConfirmed = true;
+      _activationRpcOk = true;
       console.log(`[Retention] User activation status updated for last ${daysBack} days`);
     }
   } catch (err: any) {
@@ -51,7 +54,7 @@ export async function computeRecentRetention(daysBack = 31): Promise<void> {
  * Update qualified/retained flags for attributions within the last N days.
  */
 export async function computeQualifiedReferrals(daysBack = 90): Promise<void> {
-  if (_tablesConfirmed === false) return;
+  if ((_qualifiedRpcOk as boolean | null) === false) return;
 
   try {
     const { data, error } = await supabase.rpc('compute_qualified_referrals', {
@@ -63,11 +66,15 @@ export async function computeQualifiedReferrals(daysBack = 90): Promise<void> {
       const msg  = String((error as any).message ?? '').toLowerCase();
 
       if (code === '42883' || msg.includes('does not exist') || msg.includes('schema cache')) {
-        console.warn('[Retention] compute_qualified_referrals not available (run migration 346)');
+        if (_qualifiedRpcOk !== false) {
+          console.warn('[Retention] compute_qualified_referrals not available (run migration 346)');
+          _qualifiedRpcOk = false;
+        }
         return;
       }
       console.error('[Retention] compute_qualified_referrals error:', error);
     } else {
+      _qualifiedRpcOk = true;
       console.log(`[Retention] Qualified referrals computed — newly qualified: ${data ?? 0}`);
     }
   } catch (err: any) {
@@ -82,7 +89,7 @@ let _snapshotsConfirmed: boolean | null = null;
  * Requires migration 347 (referral_daily_snapshots + backfill_referral_snapshots).
  */
 export async function computeReferralSnapshots(daysBack = 90): Promise<void> {
-  if (_snapshotsConfirmed === false) return;
+  if ((_snapshotsConfirmed as boolean | null) === false) return;
 
   try {
     const { data, error } = await supabase.rpc('backfill_referral_snapshots', {
@@ -110,12 +117,26 @@ export async function computeReferralSnapshots(daysBack = 90): Promise<void> {
   }
 }
 
+let _retentionRunning = false;
+
 /**
  * Main cron entry point. Run after analyticsSnapshot.
+ * Each step is isolated — one failure does not skip unrelated steps (separate RPC flags).
  */
 export async function runRetentionCompute(): Promise<void> {
-  console.log('[Retention] Running daily retention + qualification compute');
-  await computeRecentRetention(31);
-  await computeQualifiedReferrals(90);
-  await computeReferralSnapshots(90);
+  if (_retentionRunning) {
+    console.warn('[Retention] Skipped (already running)');
+    return;
+  }
+  _retentionRunning = true;
+  try {
+    console.log('[Retention] Running daily retention + qualification compute');
+    await computeRecentRetention(31);
+    await computeQualifiedReferrals(90);
+    await computeReferralSnapshots(90);
+  } catch (e: any) {
+    console.error('[Retention] runRetentionCompute unexpected (non-fatal):', e?.message ?? e);
+  } finally {
+    _retentionRunning = false;
+  }
 }

@@ -80,9 +80,18 @@ CREATE INDEX IF NOT EXISTS idx_rds_score_day
 
 ALTER TABLE referral_daily_snapshots ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "rds_select_all"
-  ON referral_daily_snapshots FOR SELECT
-  USING (true);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'referral_daily_snapshots'
+      AND policyname = 'rds_select_all'
+  ) THEN
+    CREATE POLICY "rds_select_all"
+      ON referral_daily_snapshots FOR SELECT
+      USING (true);
+  END IF;
+END $$;
 
 
 -- ============================================================

@@ -79,7 +79,7 @@ export async function logProductEvent(params: ProductEventParams): Promise<void>
 
     // 42P01 = undefined_table: migration not run yet → suppress after first warning
     if (code === '42P01' || msg.includes('does not exist') || msg.includes('schema cache')) {
-      if (_tableConfirmed !== false) {
+      if ((_tableConfirmed as boolean | null) !== false) {
         console.warn('[Analytics] product_events table not available (run migration 345)');
         _tableConfirmed = false;
       }
