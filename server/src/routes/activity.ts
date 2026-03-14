@@ -250,7 +250,18 @@ router.get('/user/:userId', async (req, res) => {
 
     // Include wallet transactions so the feed reflects *actual wallet movements* (deposits, withdraws, bet locks, etc).
     // We'll de-dupe bet entries when we have an escrow_consumed wallet tx for the same entry.
-    const walletChannels = ['escrow_consumed', 'escrow_deposit', 'escrow_withdraw', 'escrow_unlock', 'payout', 'settlement_loss', 'platform_fee', 'creator_fee'];
+    const walletChannels = [
+      'escrow_consumed',
+      'escrow_deposit',
+      'escrow_withdraw',
+      'escrow_unlock',
+      'payout',
+      'settlement_loss',
+      'platform_fee',
+      'creator_fee',
+      // Demo/Zaurum claim credits are currently recorded on the fiat channel with demo-wallet provider.
+      'fiat',
+    ];
 
     console.log(`[activity] Fetching wallet_transactions for user: ${userId}, channels: ${walletChannels.join(', ')}`);
 
@@ -328,6 +339,34 @@ router.get('/user/:userId', async (req, res) => {
       const predictionTitle = tx.meta?.prediction_title ?? null;
 
       switch (tx.channel) {
+        case 'fiat': {
+          const metaKind = String(tx.meta?.kind || '').toLowerCase();
+          if (metaKind === 'demo_faucet') {
+            return {
+              id: `wallet_${tx.id}`,
+              timestamp: tx.created_at,
+              type: 'wallet.claim',
+              actor: null,
+              predictionId: null,
+              predictionTitle: null,
+              predictionStatus: null,
+              data: { amount },
+            };
+          }
+          return {
+            id: `wallet_${tx.id}`,
+            timestamp: tx.created_at,
+            type: 'wallet.other',
+            actor: null,
+            predictionId,
+            predictionTitle,
+            predictionStatus: null,
+            data: {
+              amount,
+              channel: tx.channel,
+            },
+          };
+        }
         case 'escrow_consumed':
           return {
             id: `wallet_${tx.id}`,

@@ -926,7 +926,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
               onClick={() => setShowDeleteModal(false)}
               disabled={deletingAccount}
               className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-50"
-              aria-label="Close"
+              aria-label="Close delete account modal"
             >
               <X className="w-4 h-4 text-gray-600" />
             </button>
@@ -1067,7 +1067,7 @@ const ProfilePageV2: React.FC<ProfilePageV2Props> = ({ onNavigateBack, userId })
             <button
               onClick={() => setShowActivityModal(false)}
               className="p-1.5 rounded-lg hover:bg-gray-100"
-              aria-label="Close"
+              aria-label="Close activity modal"
             >
               <X className="w-4 h-4 text-gray-600" />
             </button>
