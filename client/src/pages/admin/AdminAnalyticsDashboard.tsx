@@ -804,12 +804,13 @@ const ReferralTab: React.FC<ReferralTabProps> = ({ period, userId }) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await adminGet<any>(
+      const res = await adminGet<any>(
         `/api/v2/admin/analytics/team/leaderboard`,
         userId,
         { period, limit: 50 }
       );
-      setRows((data?.items ?? []).map((r: any) => ({
+      const payload = res?.data ?? res;
+      setRows((payload?.items ?? []).map((r: any) => ({
         memberId:              r.memberId,
         username:              r.username ?? r.fullName ?? '—',
         fullName:              r.fullName ?? '',
@@ -1297,9 +1298,10 @@ const AdminAnalyticsDashboard: React.FC = () => {
       const params: Record<string, string> = { period };
       if (dateFrom) params.dateFrom = dateFrom;
       if (dateTo)   params.dateTo   = dateTo;
-      const data = await adminGet<any>('/api/v2/admin/analytics/overview', userId, params);
-      setOverviewRows(data?.rows ?? []);
-      setOverviewSummary(data?.summary ?? null);
+      const res = await adminGet<any>('/api/v2/admin/analytics/overview', userId, params);
+      const payload = res?.data ?? res;
+      setOverviewRows(payload?.rows ?? []);
+      setOverviewSummary(payload?.summary ?? null);
     } catch (e: any) {
       setOverviewError(e?.message ?? 'Failed to load overview');
     } finally {
@@ -1316,8 +1318,9 @@ const AdminAnalyticsDashboard: React.FC = () => {
       const params: Record<string, string> = { period };
       if (dateFrom) params.dateFrom = dateFrom;
       if (dateTo)   params.dateTo   = dateTo;
-      const data = await adminGet<any>('/api/v2/admin/analytics/ops', userId, params);
-      setOpsData(data ?? null);
+      const res = await adminGet<any>('/api/v2/admin/analytics/ops', userId, params);
+      const payload = res?.data ?? res;
+      setOpsData(payload ?? null);
     } catch (e: any) {
       setOpsError(e?.message ?? 'Failed to load ops data');
     } finally {
@@ -1341,6 +1344,16 @@ const AdminAnalyticsDashboard: React.FC = () => {
   }, [tab, loadOverview, loadOps]);
 
   const isLoading = overviewLoading || opsLoading;
+
+  // Never render blank: show loading when session not ready
+  if (!userId) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
+        <p className="text-slate-400 mt-3 text-sm">Loading session...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

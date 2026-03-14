@@ -6,13 +6,13 @@ import { adminGet } from '@/lib/adminApi';
 import {
   LayoutDashboard,
   Users,
+  UserPlus,
   Wallet,
   Target,
   Gavel,
   Flag,
   ScrollText,
   Settings,
-  LogOut,
   ChevronLeft,
   BarChart2,
   Trophy,
@@ -24,7 +24,8 @@ interface AdminLayoutProps {
 
 const navItems = [
   { path: '/admin', label: 'Overview', icon: LayoutDashboard, exact: true },
-  { path: '/admin/analytics', label: 'Analytics', icon: BarChart2 },
+  { path: '/admin/analytics', label: 'Analytics', icon: BarChart2, exact: true },
+  { path: '/admin/analytics/referrals', label: 'Referral Scorecards', icon: UserPlus },
   { path: '/admin/analytics/team', label: 'Team Referrals', icon: Trophy },
   { path: '/admin/users', label: 'Users', icon: Users },
   { path: '/admin/wallets', label: 'Wallets', icon: Wallet },
