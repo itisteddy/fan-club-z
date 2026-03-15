@@ -7,7 +7,7 @@
  */
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useAdminFilter } from '@/hooks/useAdminFilter';
 import {
   TrendingUp,
   Users,
@@ -139,12 +139,12 @@ const Sparkline: React.FC<{ values: number[]; color?: string }> = ({ values, col
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export const AnalyticsPage: React.FC = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuthStore();
   const { user: sessionUser } = useAuthSession();
   const actorId = sessionUser?.id || user?.id || '';
+  const { filter, setPeriod } = useAdminFilter();
 
-  const period = (searchParams.get('period') as Period) || '30d';
+  const period = filter.period as Period;
 
   const [data, setData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -152,11 +152,6 @@ export const AnalyticsPage: React.FC = () => {
   const [backfilling, setBackfilling] = useState(false);
   const [backfillMsg, setBackfillMsg] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-
-  const setPeriod = useCallback(
-    (p: Period) => setSearchParams(prev => { prev.set('period', p); return new URLSearchParams(prev); }),
-    [setSearchParams]
-  );
 
   const fetchData = useCallback(async () => {
     abortRef.current?.abort();

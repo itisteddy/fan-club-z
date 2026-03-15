@@ -17,6 +17,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useAuthSession } from '../../providers/AuthSessionProvider';
 import { adminGet, adminPost, buildAdminUrl } from '@/lib/adminApi';
 import { getAdminKey } from '@/components/admin/AdminGate';
+import { useAdminFilter, ADMIN_PERIOD_LABELS } from '@/hooks/useAdminFilter';
 import {
   ChevronDown, ChevronUp, ChevronsUpDown,
   Download, RefreshCw, AlertTriangle, Search, X,
@@ -149,8 +150,9 @@ type Period = typeof PERIODS[number];
 export default function TeamAnalyticsPage() {
   const { user } = useAuthSession();
   const [params, setParams] = useSearchParams();
+  const { filter, setPeriod } = useAdminFilter();
 
-  const period    = (params.get('period') as Period)   ?? '30d';
+  const period    = filter.period as Period;
   const sortCol   = params.get('sort')                 ?? 'composite_score';
   const sortDir   = (params.get('dir') as 'asc'|'desc') ?? 'desc';
   const pageParam = Number(params.get('page') ?? '0');
@@ -314,12 +316,12 @@ export default function TeamAnalyticsPage() {
           {PERIODS.map((p) => (
             <button
               key={p}
-              onClick={() => setParam('period', p)}
+              onClick={() => setPeriod(p)}
               className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
                 period === p ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'
               }`}
             >
-              {p}
+              {ADMIN_PERIOD_LABELS[p] ?? p}
             </button>
           ))}
         </div>

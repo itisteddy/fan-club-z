@@ -10,6 +10,7 @@ import AdminAnalyticsDashboard from '@/pages/admin/AdminAnalyticsDashboard';
 import ReferralScorecardsPage from '@/pages/admin/ReferralScorecardsPage';
 import TeamAnalyticsPage from '@/pages/admin/TeamAnalyticsPage';
 import TeamMemberDetailPage from '@/pages/admin/TeamMemberDetailPage';
+import UserAnalyticsPage from '@/pages/admin/UserAnalyticsPage';
 import UsersPage from '@/pages/admin/UsersPage';
 import UserDetailPage from '@/pages/admin/UserDetailPage';
 import UserViewPage from '@/pages/admin/UserViewPage';
@@ -59,6 +60,7 @@ const LandingAdminRouter: React.FC = () => {
           <Route path="/admin/analytics/referrals" element={<ReferralScorecardsPage />} />
           <Route path="/admin/analytics/team" element={<TeamAnalyticsPage />} />
           <Route path="/admin/analytics/team/:memberId" element={<TeamMemberDetailPage />} />
+          <Route path="/admin/analytics/user/:userId" element={<UserAnalyticsPage />} />
           <Route path="/admin/users" element={<UsersPage />} />
           <Route path="/admin/users/:userId" element={<UserDetailPage />} />
           <Route path="/admin/users/:userId/view" element={<UserViewPage />} />

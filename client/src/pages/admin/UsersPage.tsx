@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Users, Search, Loader2, User, Shield, Calendar } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Users, Search, Loader2, User, Shield, Calendar, BarChart2 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useAuthSession } from '../../providers/AuthSessionProvider';
 import { adminGet } from '@/lib/adminApi';
@@ -16,7 +16,6 @@ interface UserResult {
 }
 
 export const UsersPage: React.FC = () => {
-  const navigate = useNavigate();
   const { user } = useAuthStore();
   const { user: sessionUser } = useAuthSession();
   const actorId = sessionUser?.id || user?.id || '';
@@ -115,10 +114,9 @@ export const UsersPage: React.FC = () => {
         ) : (
           <div className="divide-y divide-slate-700">
             {results.map((user) => (
-              <button
+              <div
                 key={user.id}
-                onClick={() => navigate(`/admin/users/${user.id}`)}
-                className="w-full px-4 py-3 hover:bg-slate-700/50 transition-colors text-left flex items-center gap-4"
+                className="px-4 py-3 hover:bg-slate-700/50 transition-colors flex items-center gap-4"
               >
                 {/* Avatar */}
                 <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center overflow-hidden flex-shrink-0">
@@ -130,7 +128,7 @@ export const UsersPage: React.FC = () => {
                 </div>
 
                 {/* Info */}
-                <div className="flex-1 min-w-0">
+                <Link to={`/admin/users/${user.id}`} className="flex-1 min-w-0 text-left">
                   <div className="flex items-center gap-2">
                     <span className="text-white font-medium truncate">
                       {user.fullName || user.username || 'Unknown User'}
@@ -143,19 +141,27 @@ export const UsersPage: React.FC = () => {
                     {user.username && <span>@{user.username}</span>}
                     {user.email && <span className="truncate">{user.email}</span>}
                   </div>
-                </div>
+                </Link>
 
-                {/* Meta */}
-                <div className="text-right flex-shrink-0">
+                {/* Meta + actions */}
+                <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
                   <div className="text-xs text-slate-500 font-mono">
                     {user.id.slice(0, 8)}...
                   </div>
-                  <div className="flex items-center gap-1 text-xs text-slate-500 mt-0.5">
+                  <div className="flex items-center gap-1 text-xs text-slate-500">
                     <Calendar className="w-3 h-3" />
                     {new Date(user.createdAt).toLocaleDateString()}
                   </div>
+                  <Link
+                    to={`/admin/analytics/user/${user.id}`}
+                    className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 transition-colors mt-0.5"
+                    title="View analytics"
+                  >
+                    <BarChart2 className="w-3 h-3" />
+                    Analytics
+                  </Link>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         )}

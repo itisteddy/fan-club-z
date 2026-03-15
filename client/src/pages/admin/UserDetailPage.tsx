@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   User,
   ArrowLeft,
@@ -16,6 +16,7 @@ import {
   ExternalLink,
   DollarSign,
   AlertTriangle,
+  BarChart2,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useAuthSession } from '../../providers/AuthSessionProvider';
@@ -235,6 +236,13 @@ export const UserDetailPage: React.FC = () => {
             >
               View as user
             </button>
+            <Link
+              to={`/admin/analytics/user/${user.id}`}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-700 text-slate-300 rounded-lg text-sm font-medium hover:bg-slate-600 hover:text-white transition-colors"
+            >
+              <BarChart2 className="w-4 h-4" />
+              View Analytics
+            </Link>
           </div>
         </div>
       </div>
