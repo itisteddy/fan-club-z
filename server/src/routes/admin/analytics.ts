@@ -158,7 +158,8 @@ analyticsRouter.get('/overview', async (req, res) => {
 // ─── GET /referrals ──────────────────────────────────────────────────────────
 
 const ReferralsSchema = z.object({
-  period: z.enum(['7d', '30d', 'all']).default('30d'),
+  // Accept all valid periods; 90d is treated as 'all' since the view has no 90d columns.
+  period: z.enum([...VALID_PERIODS]).default('30d'),
   limit: z.coerce.number().min(1).max(200).default(50),
   offset: z.coerce.number().min(0).default(0),
   sort: z.enum(['total_signups', 'active_referrals', 'referred_stake_total', 'conversion_rate_pct']).default('total_signups'),
@@ -173,8 +174,10 @@ analyticsRouter.get('/referrals', async (req, res) => {
     const { period, limit, offset, sort } = parsed.data;
 
     // Map period → column names in v_referral_performance
-    const signupsCol    = period === 'all' ? 'total_signups'         : `signups_${period}`;
-    const activeCol     = period === 'all' ? 'active_referrals_all'  : `active_referrals_${period}`;
+    // Note: v_referral_performance only has 7d and 30d windowed columns; 90d falls back to all-time.
+    const viewPeriod    = (period === '90d' || period === 'all') ? 'all' : period;
+    const signupsCol    = viewPeriod === 'all' ? 'total_signups'        : `signups_${viewPeriod}`;
+    const activeCol     = viewPeriod === 'all' ? 'active_referrals_all' : `active_referrals_${viewPeriod}`;
     const sortCol       = sort === 'active_referrals' ? activeCol : sort;
 
     const { data, error, count } = await supabase
@@ -603,11 +606,19 @@ analyticsRouter.get('/user/:targetUserId', async (req, res) => {
     // ── 1. Identity & attribution ─────────────────────────────────────────
     const { data: userRow, error: userErr } = await supabase
       .from('users')
-      .select('id, username, full_name, email, avatar_url, bio, created_at, last_login_at, referred_by, referral_code, is_admin, is_verified, role')
+      .select('id, username, full_name, email, avatar_url, created_at, last_login_at, referred_by, referral_code, is_admin, is_verified, is_banned, ban_reason')
       .eq('id', targetUserId)
       .maybeSingle();
 
-    if (userErr || !userRow) {
+    if (userErr) {
+      // Schema error (column not found etc) — still 404 with message
+      if (isSchemaMismatch(userErr)) {
+        return res.status(404).json({ error: 'Not Found', message: 'User not found or schema unavailable', version: VERSION });
+      }
+      console.error('[Analytics/User] DB error:', userErr);
+      return res.status(500).json({ error: 'Internal Server Error', message: userErr.message, version: VERSION });
+    }
+    if (!userRow) {
       return res.status(404).json({ error: 'Not Found', message: 'User not found', version: VERSION });
     }
 
@@ -690,10 +701,10 @@ analyticsRouter.get('/user/:targetUserId', async (req, res) => {
           fullName:      userRow.full_name,
           email:         userRow.email,
           avatarUrl:     userRow.avatar_url,
-          bio:           userRow.bio,
-          role:          userRow.role,
-          isAdmin:       userRow.is_admin,
-          isVerified:    userRow.is_verified,
+          isAdmin:       userRow.is_admin ?? false,
+          isVerified:    userRow.is_verified ?? false,
+          isBanned:      userRow.is_banned ?? false,
+          banReason:     userRow.ban_reason ?? null,
           joinedAt:      userRow.created_at,
           lastActiveAt:  userRow.last_login_at,
           referralCode:  userRow.referral_code,

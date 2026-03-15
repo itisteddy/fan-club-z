@@ -38,10 +38,10 @@ interface UserAnalyticsData {
     fullName: string | null;
     email: string | null;
     avatarUrl: string | null;
-    bio: string | null;
-    role: string;
     isAdmin: boolean;
     isVerified: boolean;
+    isBanned: boolean;
+    banReason: string | null;
     joinedAt: string;
     lastActiveAt: string | null;
     referralCode: string | null;
@@ -240,11 +240,20 @@ export const UserAnalyticsPage: React.FC = () => {
                   <p className="text-slate-300">{fmtDate(identity?.lastActiveAt)}</p>
                 </div>
                 <div>
-                  <p className="text-slate-500 text-xs">Role</p>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-slate-300 capitalize">{identity?.role || 'user'}</span>
-                    {identity?.isAdmin && <Shield className="w-3.5 h-3.5 text-amber-400" />}
-                    {identity?.isVerified && <BadgeCheck className="w-3.5 h-3.5 text-blue-400" />}
+                  <p className="text-slate-500 text-xs">Status</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {identity?.isAdmin && (
+                      <span className="flex items-center gap-0.5 text-amber-400 text-xs"><Shield className="w-3 h-3" />Admin</span>
+                    )}
+                    {identity?.isVerified && (
+                      <span className="flex items-center gap-0.5 text-blue-400 text-xs"><BadgeCheck className="w-3 h-3" />Verified</span>
+                    )}
+                    {identity?.isBanned && (
+                      <span className="text-red-400 text-xs">Banned</span>
+                    )}
+                    {!identity?.isAdmin && !identity?.isVerified && !identity?.isBanned && (
+                      <span className="text-slate-400 text-xs">Standard</span>
+                    )}
                   </div>
                 </div>
                 <div>
