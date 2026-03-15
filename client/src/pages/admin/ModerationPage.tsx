@@ -294,22 +294,29 @@ export const ModerationPage: React.FC = () => {
                         )}
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-white font-medium">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-white font-semibold text-sm">
                             {creator.fullName || creator.username || 'Unknown'}
                           </p>
+                          {creator.username && creator.fullName && (
+                            <span className="text-slate-400 text-xs">@{creator.username}</span>
+                          )}
                           {creator.isVerified && (
-                            <BadgeCheck className="w-4 h-4 text-blue-400" aria-label="Verified" />
+                            <BadgeCheck className="w-4 h-4 text-blue-400 flex-shrink-0" aria-label="Verified" />
                           )}
                           {creator.isBanned && (
-                            <span className="px-2 py-0.5 bg-red-600/20 text-red-400 text-xs rounded-full">
+                            <span className="px-2 py-0.5 bg-red-600/20 text-red-400 text-xs font-medium rounded-full flex-shrink-0">
                               Banned
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-slate-400">
-                          {creator.email} • {creator.predictionCount} predictions
-                        </p>
+                        <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-400 flex-wrap">
+                          {creator.email && (
+                            <span className="truncate max-w-[180px]">{creator.email}</span>
+                          )}
+                          <span className="text-slate-600">·</span>
+                          <span>{creator.predictionCount} prediction{creator.predictionCount !== 1 ? 's' : ''}</span>
+                        </div>
                         {creator.isBanned && creator.banReason && (
                           <p className="text-xs text-red-400 mt-0.5">
                             Reason: {creator.banReason}
@@ -457,11 +464,14 @@ export const ModerationPage: React.FC = () => {
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="px-2 py-0.5 bg-slate-600 text-slate-300 text-xs rounded">
+                        <span className="px-2 py-0.5 bg-slate-700 text-slate-300 text-xs font-medium rounded uppercase tracking-wide">
                           {report.targetType}
                         </span>
-                        <span className="text-white font-medium truncate">
-                          @{report.reporterUsername ?? report.reporterId.slice(0, 8)}
+                        <span className="text-white font-medium text-sm">
+                          Reported by{' '}
+                          <span className="text-emerald-400">
+                            @{report.reporterUsername ?? report.reporterId.slice(0, 8)}
+                          </span>
                         </span>
                         <span className="text-slate-500 text-xs">
                           {formatReportDate(report.createdAt)}

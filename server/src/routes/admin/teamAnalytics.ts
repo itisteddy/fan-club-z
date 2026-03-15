@@ -233,7 +233,16 @@ teamAnalyticsRouter.get('/leaderboard', async (req: Request, res: Response) => {
             .select('*', { count: 'exact' })
             .order(safeSort as any, { ascending: safeSortDir === 'ASC' })
             .range(parsedOffset, parsedOffset + parsedLimit - 1);
-          if (fe) throw fe;
+          if (fe) {
+            // View also unavailable — degrade gracefully
+            const feCode = String((fe as any).code ?? '');
+            const feMsg  = String((fe as any).message ?? '').toLowerCase();
+            if (feCode === '42P01' || feCode === '42703' || feMsg.includes('does not exist')) {
+              _viewConfirmed = false;
+              return res.json({ data: { items: [], total: 0, scoringWeights: DEFAULT_SCORING_WEIGHTS } });
+            }
+            throw fe;
+          }
           items = (fallback ?? []).map(buildScorecardRow);
           total = items.length;
         } else {
@@ -289,7 +298,8 @@ teamAnalyticsRouter.get('/:memberId/scorecard', async (req: Request, res: Respon
 
     if (error) {
       const code = String((error as any).code ?? '');
-      if (code === '42P01') {
+      const msg  = String((error as any).message ?? '').toLowerCase();
+      if (code === '42P01' || code === '42703' || msg.includes('does not exist')) {
         return res.json({ data: null, message: 'Analytics not yet available — run migration 347' });
       }
       throw error;

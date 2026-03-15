@@ -119,10 +119,15 @@ export const WalletsPage: React.FC = () => {
                     <User className="w-5 h-5 text-slate-400" />
                   </div>
                   <div>
-                    <p className="text-white font-medium">
-                      {user.fullName || user.username || 'Unknown User'}
-                    </p>
-                    <p className="text-sm text-slate-400">
+                    <div className="flex items-center gap-2">
+                      <p className="text-white font-semibold text-sm">
+                        {user.fullName || user.username || 'Unknown User'}
+                      </p>
+                      {user.username && user.fullName && (
+                        <span className="text-slate-400 text-xs">@{user.username}</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5">
                       {user.email || user.id.slice(0, 8) + '...'}
                     </p>
                   </div>
