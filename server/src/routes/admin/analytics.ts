@@ -578,6 +578,164 @@ analyticsRouter.get('/ops', async (req, res) => {
   }
 });
 
+// ─── GET /user/:targetUserId ──────────────────────────────────────────────────
+//
+// Per-user analytics drilldown: identity, engagement, economy, recent activity.
+
+const UserAnalyticsSchema = z.object({
+  period: z.enum(VALID_PERIODS).default('30d'),
+});
+
+analyticsRouter.get('/user/:targetUserId', async (req, res) => {
+  try {
+    const { targetUserId } = req.params;
+    if (!targetUserId) {
+      return res.status(400).json({ error: 'Bad Request', message: 'targetUserId required', version: VERSION });
+    }
+
+    const parsed = UserAnalyticsSchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Bad Request', message: 'Invalid period', version: VERSION });
+    }
+    const { period } = parsed.data;
+    const startDate = periodToStartDate(period);
+
+    // ── 1. Identity & attribution ─────────────────────────────────────────
+    const { data: userRow, error: userErr } = await supabase
+      .from('users')
+      .select('id, username, full_name, email, avatar_url, bio, created_at, last_login_at, referred_by, referral_code, is_admin, is_verified, role')
+      .eq('id', targetUserId)
+      .maybeSingle();
+
+    if (userErr || !userRow) {
+      return res.status(404).json({ error: 'Not Found', message: 'User not found', version: VERSION });
+    }
+
+    // Referrer info
+    let referrerRow: any = null;
+    if (userRow.referred_by) {
+      const { data: ref } = await supabase
+        .from('users')
+        .select('id, username, full_name, avatar_url')
+        .eq('id', userRow.referred_by)
+        .maybeSingle();
+      referrerRow = ref ?? null;
+    }
+
+    // ── 2. Engagement metrics ─────────────────────────────────────────────
+    // Entries (prediction_entries)
+    let entriesQuery = supabase
+      .from('prediction_entries')
+      .select('id, amount, created_at, status', { count: 'exact', head: false })
+      .eq('user_id', targetUserId);
+    if (startDate) entriesQuery = entriesQuery.gte('created_at', startDate);
+    const { data: entryRows, count: entriesCount } = await entriesQuery;
+
+    const totalStakeAmount = (entryRows || []).reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
+
+    // Predictions created
+    let predsQuery = supabase
+      .from('predictions')
+      .select('id, created_at', { count: 'exact', head: true })
+      .eq('creator_id', targetUserId);
+    if (startDate) predsQuery = predsQuery.gte('created_at', startDate);
+    const { count: predsCount } = await predsQuery;
+
+    // Comments
+    let commentsQuery = supabase
+      .from('comments')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', targetUserId);
+    if (startDate) commentsQuery = commentsQuery.gte('created_at', startDate);
+    const { count: commentsCount } = await commentsQuery;
+
+    // ── 3. Economy metrics ────────────────────────────────────────────────
+    // Wallet
+    const { data: walletRow } = await supabase
+      .from('wallets')
+      .select('available_balance, reserved_balance, total_deposited, total_withdrawn')
+      .eq('user_id', targetUserId)
+      .maybeSingle();
+
+    // Winnings / payouts from won entries
+    const { data: wonRows } = await supabase
+      .from('prediction_entries')
+      .select('amount')
+      .eq('user_id', targetUserId)
+      .eq('status', 'won');
+    const totalWon = (wonRows || []).reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
+
+    // ── 4. Referrals made by this user ────────────────────────────────────
+    let referralsQuery = supabase
+      .from('users')
+      .select('id', { count: 'exact', head: true })
+      .eq('referred_by', targetUserId);
+    if (startDate) referralsQuery = referralsQuery.gte('created_at', startDate);
+    const { count: referralsMade } = await referralsQuery;
+
+    // ── 5. Recent activity (last 20 events) ───────────────────────────────
+    const { data: recentEvents } = await supabase
+      .from('product_events')
+      .select('event_name, occurred_at, properties')
+      .eq('user_id', targetUserId)
+      .order('occurred_at', { ascending: false })
+      .limit(20);
+
+    return res.json({
+      data: {
+        period,
+        identity: {
+          id:            userRow.id,
+          username:      userRow.username,
+          fullName:      userRow.full_name,
+          email:         userRow.email,
+          avatarUrl:     userRow.avatar_url,
+          bio:           userRow.bio,
+          role:          userRow.role,
+          isAdmin:       userRow.is_admin,
+          isVerified:    userRow.is_verified,
+          joinedAt:      userRow.created_at,
+          lastActiveAt:  userRow.last_login_at,
+          referralCode:  userRow.referral_code,
+          referredBy:    userRow.referred_by,
+          referrer:      referrerRow ? {
+            id:        referrerRow.id,
+            username:  referrerRow.username,
+            fullName:  referrerRow.full_name,
+            avatarUrl: referrerRow.avatar_url,
+          } : null,
+        },
+        engagement: {
+          stakesCount:       entriesCount ?? 0,
+          totalStakeAmount,
+          predictionsCreated: predsCount ?? 0,
+          commentsCount:      commentsCount ?? 0,
+          referralsMade:      referralsMade ?? 0,
+        },
+        economy: {
+          availableBalance:  Number(walletRow?.available_balance ?? 0),
+          reservedBalance:   Number(walletRow?.reserved_balance ?? 0),
+          totalDeposited:    Number(walletRow?.total_deposited ?? 0),
+          totalWithdrawn:    Number(walletRow?.total_withdrawn ?? 0),
+          totalWon,
+        },
+        recentEvents: (recentEvents || []).map((e: any) => ({
+          eventName:   e.event_name,
+          occurredAt:  e.occurred_at,
+          properties:  e.properties,
+        })),
+      },
+      version: VERSION,
+    });
+  } catch (err: any) {
+    console.error('[Analytics/User] Error:', err);
+    if (isSchemaMismatch(err)) {
+      return res.status(404).json({ error: 'Not Found', message: 'User analytics tables not available', version: VERSION });
+    }
+    return res.status(500).json({ error: 'Internal Server Error', message: err.message, version: VERSION });
+  }
+});
+
 // ─── POST /backfill ───────────────────────────────────────────────────────────
 
 analyticsRouter.post('/backfill', async (req, res) => {

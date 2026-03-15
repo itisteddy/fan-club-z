@@ -7,6 +7,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
+import { useAdminFilter, ADMIN_PERIOD_LABELS } from '@/hooks/useAdminFilter';
 import {
   Users,
   MousePointerClick,
@@ -97,8 +98,9 @@ export const ReferralScorecardsPage: React.FC = () => {
   const { user } = useAuthStore();
   const { user: sessionUser } = useAuthSession();
   const actorId = sessionUser?.id || user?.id || '';
+  const { filter, setPeriod } = useAdminFilter();
 
-  const period = (searchParams.get('period') as Period) || '30d';
+  const period = filter.period as Period;
   const sort = (searchParams.get('sort') as SortKey) || 'total_signups';
   const page = parseInt(searchParams.get('page') || '0', 10);
 
@@ -106,6 +108,7 @@ export const ReferralScorecardsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Generic single-param setter for non-period params (sort, page).
   const setParam = useCallback(
     (key: string, value: string) => {
       setSearchParams(prev => {
@@ -192,14 +195,14 @@ export const ReferralScorecardsPage: React.FC = () => {
             {(['7d', '30d', 'all'] as Period[]).map(p => (
               <button
                 key={p}
-                onClick={() => setParam('period', p)}
+                onClick={() => setPeriod(p)}
                 className={`px-3 py-1.5 text-sm font-medium transition-colors ${
                   period === p
                     ? 'bg-emerald-600 text-white'
                     : 'text-slate-400 hover:text-white hover:bg-slate-700'
                 }`}
               >
-                {p === 'all' ? 'All' : p}
+                {ADMIN_PERIOD_LABELS[p] ?? p}
               </button>
             ))}
           </div>

@@ -11,6 +11,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useAuthSession } from '../../providers/AuthSessionProvider';
 import { adminGet } from '@/lib/adminApi';
+import { useAdminFilter, ADMIN_PERIOD_LABELS } from '@/hooks/useAdminFilter';
 import {
   ArrowLeft, TrendingUp, Users, AlertTriangle,
   Star, Info, ChevronDown, ChevronUp,
@@ -147,8 +148,9 @@ export default function TeamMemberDetailPage() {
   const { memberId } = useParams<{ memberId: string }>();
   const { user } = useAuthSession();
   const [params, setParams] = useSearchParams();
+  const { filter, setPeriod } = useAdminFilter();
 
-  const period      = (params.get('period') as Period) ?? '30d';
+  const period      = filter.period as Period;
   const granularity = params.get('granularity') ?? 'week';
 
   const [scorecard,     setScorecard]     = useState<Scorecard | null>(null);
@@ -331,12 +333,12 @@ export default function TeamMemberDetailPage() {
           {PERIODS.map((p) => (
             <button
               key={p}
-              onClick={() => setParam('period', p)}
+              onClick={() => setPeriod(p)}
               className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
                 period === p ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'
               }`}
             >
-              {p}
+              {ADMIN_PERIOD_LABELS[p] ?? p}
             </button>
           ))}
         </div>

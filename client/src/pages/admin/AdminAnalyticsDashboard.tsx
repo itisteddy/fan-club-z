@@ -43,10 +43,15 @@ import {
 } from 'lucide-react';
 import { adminGet } from '@/lib/adminApi';
 import { useAuthSession } from '@/providers/AuthSessionProvider';
+import {
+  useAdminFilter,
+  ADMIN_PERIOD_LABELS,
+  type AdminPeriod,
+} from '@/hooks/useAdminFilter';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Period = '7d' | '30d' | '90d' | 'all';
+type Period = AdminPeriod;
 type Tab = 'overview' | 'growth' | 'referral' | 'engagement' | 'ops';
 
 interface DailyRow {
@@ -132,12 +137,8 @@ interface LeaderboardRow {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const PERIOD_LABELS: Record<Period, string> = {
-  '7d':  'Last 7 days',
-  '30d': 'Last 30 days',
-  '90d': 'Last 90 days',
-  'all': 'All time',
-};
+// Re-export from hook so sub-components can reference
+const PERIOD_LABELS = ADMIN_PERIOD_LABELS;
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'overview',    label: 'Overview',        icon: BarChart2 },
@@ -468,29 +469,32 @@ const HealthBadge: React.FC<{ ok: boolean; label: string }> = ({ ok, label }) =>
 // ─── Global Filter Bar ────────────────────────────────────────────────────────
 
 interface FilterBarProps {
-  period: Period;
-  dateFrom: string;
-  dateTo: string;
-  onPeriodChange: (p: Period) => void;
-  onDateFromChange: (d: string) => void;
-  onDateToChange: (d: string) => void;
-  onRefresh: () => void;
-  loading: boolean;
+  period:         Period;
+  dateFrom:       string;
+  dateTo:         string;
+  /** Atomically sets period AND clears any custom date range. */
+  onPeriodSelect: (p: Period) => void;
+  /** Atomically sets both date range endpoints. */
+  onDateRange:    (from: string, to: string) => void;
+  /** Atomically clears both date range fields. */
+  onClearRange:   () => void;
+  onRefresh:      () => void;
+  loading:        boolean;
 }
 
 const FilterBar: React.FC<FilterBarProps> = ({
-  period, dateFrom, dateTo, onPeriodChange, onDateFromChange, onDateToChange, onRefresh, loading,
+  period, dateFrom, dateTo, onPeriodSelect, onDateRange, onClearRange, onRefresh, loading,
 }) => {
   const hasCustomRange = !!(dateFrom || dateTo);
 
   return (
     <div className="flex flex-wrap items-center gap-3 mb-6">
-      {/* Period pills */}
+      {/* Period pills — each click is ONE atomic setSearchParams call */}
       <div className="flex items-center gap-1 bg-slate-800 border border-slate-700 rounded-lg p-1">
         {(Object.keys(PERIOD_LABELS) as Period[]).map(p => (
           <button
             key={p}
-            onClick={() => { onPeriodChange(p); onDateFromChange(''); onDateToChange(''); }}
+            onClick={() => onPeriodSelect(p)}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
               period === p && !hasCustomRange
                 ? 'bg-emerald-600 text-white'
@@ -508,7 +512,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
         <input
           type="date"
           value={dateFrom}
-          onChange={e => onDateFromChange(e.target.value)}
+          onChange={e => onDateRange(e.target.value, dateTo)}
           className="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500"
           placeholder="From"
         />
@@ -516,13 +520,13 @@ const FilterBar: React.FC<FilterBarProps> = ({
         <input
           type="date"
           value={dateTo}
-          onChange={e => onDateToChange(e.target.value)}
+          onChange={e => onDateRange(dateFrom, e.target.value)}
           className="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500"
           placeholder="To"
         />
         {hasCustomRange && (
           <button
-            onClick={() => { onDateFromChange(''); onDateToChange(''); }}
+            onClick={onClearRange}
             className="text-xs text-slate-500 hover:text-white"
           >
             Clear
@@ -1234,28 +1238,16 @@ const OpsTab: React.FC<OpsTabProps> = ({ ops, loading, error }) => {
 const AdminAnalyticsDashboard: React.FC = () => {
   const { user } = useAuthSession();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { filter, setPeriod, setDateRange, clearDateRange, setParam } = useAdminFilter();
 
   // ── Filter state from URL params ──────────────────────────────────────────
-  const tab     = (searchParams.get('tab')     as Tab)    || 'overview';
-  const period  = (searchParams.get('period')  as Period) || '30d';
-  const dateFrom = searchParams.get('dateFrom') || '';
-  const dateTo   = searchParams.get('dateTo')   || '';
+  const tab      = (searchParams.get('tab') as Tab) || 'overview';
+  const { period, dateFrom, dateTo } = filter;
 
-  const setParam = useCallback((key: string, value: string) => {
-    setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      if (value) next.set(key, value);
-      else next.delete(key);
-      return next;
-    }, { replace: true });
-  }, [setSearchParams]);
-
-  const setTab     = (t: Tab)    => setParam('tab',     t);
-  const setPeriod  = (p: Period) => setParam('period',  p);
-  const setDateFrom = (d: string) => setParam('dateFrom', d);
-  const setDateTo   = (d: string) => setParam('dateTo',   d);
+  const setTab = (t: Tab) => setParam('tab', t);
 
   const applyPreset = useCallback((preset: ReportPreset) => {
+    // Single atomic setSearchParams — applies tab, period, date range, and preset id together.
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       next.set('tab',    preset.tab);
@@ -1389,9 +1381,9 @@ const AdminAnalyticsDashboard: React.FC = () => {
         period={period}
         dateFrom={dateFrom}
         dateTo={dateTo}
-        onPeriodChange={setPeriod}
-        onDateFromChange={setDateFrom}
-        onDateToChange={setDateTo}
+        onPeriodSelect={setPeriod}
+        onDateRange={setDateRange}
+        onClearRange={clearDateRange}
         onRefresh={handleRefresh}
         loading={isLoading}
       />
